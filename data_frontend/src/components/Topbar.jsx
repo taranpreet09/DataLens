@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 
 export default function Topbar({ onMenuToggle }) {
   return (
-    <header className="w-full h-14 lg:h-16 sticky top-0 z-40 bg-[#0e0e0e] dark:bg-[#0e0e0e] border-b border-[#262626]/50 flex justify-between items-center px-4 lg:px-8 font-['Manrope'] antialiased tracking-tight">
+    <header className="w-full h-14 lg:h-16 sticky top-0 z-40 bg-[#0e0e0e] dark:bg-[#0e0e0e] border-b border-[#262626]/50 flex justify-between items-center px-4 lg:px-8 font-['Manrope'] antialiased tracking-tight print:hidden">
       <div className="flex items-center gap-3 flex-1 min-w-0">
         {/* Hamburger for mobile */}
         <button onClick={onMenuToggle} className="lg:hidden p-2 -ml-1 rounded-lg hover:bg-[#20201f] text-gray-400 transition-colors shrink-0">
@@ -10,13 +10,7 @@ export default function Topbar({ onMenuToggle }) {
         </button>
 
         <div className="flex items-center gap-4 lg:gap-6 min-w-0">
-          <div className="text-base lg:text-xl font-bold text-[#94aaff] tracking-widest uppercase truncate">Obsidian Analytics</div>
-          <div className="h-6 w-px bg-outline-variant/30 hidden md:block shrink-0"></div>
-          <div className="hidden md:flex gap-6 lg:gap-8 text-sm shrink-0">
-            <Link className="text-[#94aaff] font-semibold border-b-2 border-[#94aaff] pb-1" to="#">Overview</Link>
-            <Link className="text-gray-400 hover:text-gray-200 transition-colors" to="#">Performance</Link>
-            <Link className="text-gray-400 hover:text-gray-200 transition-colors" to="#">Audits</Link>
-          </div>
+          <div className="text-base lg:text-xl font-bold text-[#94aaff] tracking-widest uppercase truncate">DataLens</div>
         </div>
       </div>
       <div className="flex items-center gap-2 lg:gap-4 shrink-0">

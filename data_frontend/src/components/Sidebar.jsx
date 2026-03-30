@@ -14,7 +14,7 @@ export default function Sidebar({ isOpen, onClose }) {
         <div className="fixed inset-0 bg-black/60 z-40 lg:hidden" onClick={onClose}></div>
       )}
 
-      <aside className={`h-screen w-64 fixed left-0 top-0 flex flex-col bg-[#131313] dark:bg-[#131313] font-['Inter'] text-sm font-medium z-50 overflow-hidden transition-transform duration-300 lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`h-screen w-64 fixed left-0 top-0 flex flex-col bg-[#131313] dark:bg-[#131313] font-['Inter'] text-sm font-medium z-50 overflow-hidden transition-transform duration-300 lg:translate-x-0 print:hidden ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         {/* Mobile close button */}
         <button onClick={onClose} className="lg:hidden absolute top-4 right-4 p-1.5 rounded-lg hover:bg-[#20201f] text-gray-400 transition-colors">
           <span className="material-symbols-outlined">close</span>
@@ -26,8 +26,8 @@ export default function Sidebar({ isOpen, onClose }) {
               <span className="material-symbols-outlined text-on-primary text-xl" data-icon="architecture" style={{ fontVariationSettings: "'FILL' 1" }}>architecture</span>
             </div>
             <div>
-              <h1 className="font-['Manrope'] font-black uppercase tracking-tighter text-[#94aaff] text-lg leading-none">Architect Alpha</h1>
-              <span className="text-[10px] text-on-surface-variant tracking-widest uppercase opacity-70">Enterprise Tier</span>
+              <h1 className="font-['Manrope'] font-black uppercase tracking-tighter text-[#94aaff] text-lg leading-none">DataLens</h1>
+              <span className="text-[10px] text-on-surface-variant tracking-widest uppercase opacity-70">Analytics Platform</span>
             </div>
           </div>
           <button className="w-full bg-primary hover:bg-primary-fixed-dim text-on-primary-container font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 mb-8 transition-all active:scale-95 duration-100">
@@ -36,7 +36,7 @@ export default function Sidebar({ isOpen, onClose }) {
           </button>
           <nav className="flex flex-col space-y-2">
             <NavLink to="/dashboard" onClick={handleNavClick}
-              className={({ isActive }) => (isActive || location.pathname === '/' ? activeLinkClasses : inactiveLinkClasses)}>
+              className={({ isActive }) => (isActive ? activeLinkClasses : inactiveLinkClasses)}>
               <span className="material-symbols-outlined" data-icon="dashboard">dashboard</span>
               Dashboard
             </NavLink>

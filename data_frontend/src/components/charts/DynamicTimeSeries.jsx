@@ -42,9 +42,10 @@ export default function DynamicTimeSeries({ data, trendLine, peak, trough, trend
   }));
 
   return (
-    <div className="w-full h-full min-h-[300px]">
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={merged} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+    <div className="w-full h-full min-h-[300px] flex flex-col">
+      <div className="flex-1 min-h-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={merged} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff" strokeOpacity={0.05} />
           <XAxis
             dataKey="date"
@@ -52,7 +53,7 @@ export default function DynamicTimeSeries({ data, trendLine, peak, trough, trend
             tickLine={false}
             tick={{ fill: '#767575', fontSize: 10, fontFamily: 'Inter' }}
             dy={10}
-            minTickGap={30}
+            minTickGap={60}
           />
           <YAxis
             axisLine={false}
@@ -116,8 +117,9 @@ export default function DynamicTimeSeries({ data, trendLine, peak, trough, trend
           </defs>
         </ComposedChart>
       </ResponsiveContainer>
+      </div>
       {(trendDirection || peak || trough) && (
-        <div className="flex items-center gap-4 mt-3 text-[10px] text-on-surface-variant font-medium">
+        <div className="flex items-center gap-4 mt-4 pt-2 border-t border-outline-variant/10 text-[10px] text-on-surface-variant font-medium">
           {trendDirection && (
             <span className="flex items-center gap-1">
               <span className="material-symbols-outlined text-xs text-primary">

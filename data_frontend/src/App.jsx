@@ -4,6 +4,7 @@ import LandingPage from './pages/LandingPage'
 import DataExplorer from './pages/DataExplorer'
 import Visualizer from './pages/Visualizer'
 import Reports from './pages/Reports'
+import Home from './pages/Home'
 import { DatasetProvider } from './context/DatasetContext'
 
 function AIInsightsPlaceholder() {
@@ -25,8 +26,8 @@ function App() {
   return (
     <DatasetProvider>
       <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<LandingPage />} />
+        <Route path="/" element={<Home />} />
+        <Route element={<Layout />}>
           <Route path="dashboard" element={<LandingPage />} />
           <Route path="data-explorer" element={<DataExplorer />} />
           <Route path="visualizer" element={<Visualizer />} />

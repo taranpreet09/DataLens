@@ -218,6 +218,42 @@ function computeCategoricalStats(rows, headers, columnTypes) {
   return { categoricalStats: stats, categoricalColumns: catCols };
 }
 
+// ─── Step 4.5: Text Column Stats ─────────────────────────────────────────────
+
+function computeTextStats(rows, headers, columnTypes) {
+  const textCols = headers.filter(h => columnTypes[h] === 'text');
+  const stats = {};
+
+  for (const col of textCols) {
+    const vals = rows.map(r => String(r[col] ?? '')).filter(v => v !== 'null' && v !== '');
+    if (vals.length === 0) continue;
+
+    let totalLength = 0;
+    let totalWords = 0;
+    let specialCharAnomalies = 0;
+    let whitespaceAnomalies = 0;
+    
+    vals.forEach(v => {
+      totalLength += v.length;
+      totalWords += v.split(/\s+/).filter(Boolean).length;
+      if (/[<>{}\[\]\\]/.test(v)) specialCharAnomalies++;
+      if (/^\s+|\s+$/.test(v) || /\s{2,}/.test(v)) whitespaceAnomalies++;
+    });
+
+    const avgLength = round(totalLength / vals.length, 1);
+    const avgWords = round(totalWords / vals.length, 1);
+
+    stats[col] = {
+      avgLength,
+      avgWords,
+      specialCharAnomalies,
+      whitespaceAnomalies,
+      totalNonEmpty: vals.length
+    };
+  }
+  return { textStats: stats, textColumns: textCols };
+}
+
 // ─── Step 5: Date Column Stats ─────────────────────────────────────────────────
 
 function computeDateStats(rows, headers, columnTypes) {
@@ -542,13 +578,15 @@ function computeTimeSeries(rows, dateCols, numCols, numericStats) {
 
 // ─── Step 11: Outlier & Anomaly Detection ──────────────────────────────────────
 
-function computeAnomalies(rows, headers, columnTypes, numericStats) {
+function computeAnomalies(rows, headers, columnTypes, numericStats, categoricalColumns) {
   const numCols = headers.filter(h => columnTypes[h] === 'numeric');
   const anomalies = {
     constantColumns: [],
     nearConstantColumns: [],
     suspiciousPatterns: [],
     outlierComparison: {},
+    benfordAnomalies: [],
+    fuzzyDuplicates: [],
   };
 
   for (const col of numCols) {
@@ -602,6 +640,58 @@ function computeAnomalies(rows, headers, columnTypes, numericStats) {
       iqrCount: s.iqrOutlierCount,
       disagree: Math.abs(s.zscoreOutlierCount - s.iqrOutlierCount) > Math.max(s.zscoreOutlierCount, s.iqrOutlierCount) * 0.5 && (s.zscoreOutlierCount > 0 || s.iqrOutlierCount > 0),
     };
+
+    // Benford's Law Check
+    if (vals.length > 50 && s.stdDev > 0) {
+      const firstDigits = vals.map(v => parseInt(String(Math.abs(v)).replace(/[^1-9]/g, '')[0])).filter(n => !isNaN(n) && n > 0);
+      if (firstDigits.length > 50) {
+        const counts = Array(10).fill(0);
+        firstDigits.forEach(d => counts[d]++);
+        const actualPct = counts.map(c => c / firstDigits.length);
+        const expectedPct = [0, 0.301, 0.176, 0.125, 0.097, 0.079, 0.067, 0.058, 0.051, 0.046];
+        let mad = 0;
+        for (let d = 1; d <= 9; d++) {
+          mad += Math.abs(actualPct[d] - expectedPct[d]);
+        }
+        mad = mad / 9;
+        
+        if (mad > 0.04) {
+           anomalies.benfordAnomalies.push({
+             column: col,
+             mad: round(mad, 3),
+             description: `${col} deviates from Benford's Law (MAD: ${(mad*100).toFixed(1)}%). Potential synthetic or anomalous distribution.`
+           });
+        }
+      }
+    }
+  }
+
+  // Fuzzy Categorical Near-Duplicates
+  for (const col of categoricalColumns || []) {
+    const rawVals = rows.map(r => r[col]).filter(v => v !== null && v !== '');
+    const uniqueVals = Array.from(new Set(rawVals.map(String)));
+    if (uniqueVals.length > 1 && uniqueVals.length < 200) {
+      const normalize = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const map = {};
+      uniqueVals.forEach(v => {
+        const norm = normalize(v);
+        // Only consider tokens with meaningful length
+        if (norm.length > 2) {
+          if (!map[norm]) map[norm] = [];
+          map[norm].push(v);
+        }
+      });
+      const collisions = Object.values(map).filter(arr => Array.from(new Set(arr)).length > 1);
+      if (collisions.length > 0) {
+        collisions.slice(0, 3).forEach(group => {
+           anomalies.fuzzyDuplicates.push({
+             column: col,
+             group: Array.from(new Set(group)),
+             description: `Near-duplicate categories in ${col}: "${Array.from(new Set(group)).join('", "')}"`
+           });
+        });
+      }
+    }
   }
 
   return anomalies;
@@ -695,6 +785,20 @@ function computeQualityFlags(rows, headers, columnTypes, numericStats, columnBas
   anomalies.suspiciousPatterns.filter(p => p.type === 'suspicious_rounding').forEach(p => {
     flags.push({ type: 'Suspicious rounding', detail: p.description, severity: 'info', column: p.column });
   });
+
+  // Benfords Law
+  if (anomalies.benfordAnomalies) {
+    anomalies.benfordAnomalies.forEach(a => {
+      flags.push({ type: 'Benford Law Anomaly', detail: a.description, severity: 'warning', column: a.column });
+    });
+  }
+
+  // Fuzzy Duplicates
+  if (anomalies.fuzzyDuplicates) {
+    anomalies.fuzzyDuplicates.forEach(a => {
+      flags.push({ type: 'Category Consistency', detail: a.description, severity: 'warning', column: a.column });
+    });
+  }
 
   // Empty rows
   const emptyRowCount = rows.filter(r => headers.every(h => r[h] === null || r[h] === '')).length;
@@ -832,6 +936,9 @@ export function computeAllStats(headers, rows) {
   // Step 4
   const { categoricalStats, categoricalColumns } = computeCategoricalStats(rows, headers, columnTypes);
 
+  // Step 4.5: Text Stats
+  const { textStats, textColumns } = computeTextStats(rows, headers, columnTypes);
+
   // Step 5
   const { dateStats, dateColumns } = computeDateStats(rows, headers, columnTypes);
 
@@ -851,7 +958,7 @@ export function computeAllStats(headers, rows) {
   const timeSeries = computeTimeSeries(rows, dateColumns, numericColumns, numericStats);
 
   // Step 11: Anomalies
-  const anomalies = computeAnomalies(rows, headers, columnTypes, numericStats);
+  const anomalies = computeAnomalies(rows, headers, columnTypes, numericStats, categoricalColumns);
 
   // Step 12: Quality flags
   const qualityFlags = computeQualityFlags(rows, headers, columnTypes, numericStats, columnBasics, anomalies, dateStats);
@@ -869,6 +976,8 @@ export function computeAllStats(headers, rows) {
     numericColumns,
     categoricalStats,
     categoricalColumns,
+    textStats,
+    textColumns,
     dateStats,
     dateColumns,
     correlationMatrix,

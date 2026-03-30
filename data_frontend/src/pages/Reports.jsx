@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { useDataset } from '../context/DatasetContext';
+import { exportReportToPDF } from '../lib/pdfExport';
 import CorrelationHeatmap from '../components/charts/CorrelationHeatmap';
 import InsightCard from '../components/ui/InsightCard';
 import QualityBadge from '../components/ui/QualityBadge';
@@ -7,10 +9,24 @@ import DynamicTimeSeries from '../components/charts/DynamicTimeSeries';
 
 export default function Reports() {
   const { activeDataset, datasets, setActive } = useDataset();
+  const [isExporting, setIsExporting] = useState(false);
   const ds = activeDataset;
   const stats = ds?.stats;
 
   const numCols = stats?.numericColumns ?? [];
+
+  const handleExport = async () => {
+    if (isExporting || !ds) return;
+    setIsExporting(true);
+    try {
+      await exportReportToPDF(ds, `DataLens-Report-${ds.name.split('.')[0]}.pdf`);
+    } catch (e) {
+      console.error('PDF Export Error:', e);
+      alert(`Failed to generate PDF: ${e.message || String(e)}`);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="p-4 sm:p-6 lg:p-10 space-y-8 lg:space-y-10 max-w-[1600px] mx-auto w-full relative">
@@ -35,12 +51,25 @@ export default function Reports() {
               : 'Upload a dataset from the dashboard to generate reports.'}
           </p>
         </div>
-        {stats && <QualityBadge score={stats.qualityScore} />}
+        <div className="flex items-center gap-4">
+          {stats && <QualityBadge score={stats.qualityScore} />}
+          {ds && (
+            <button 
+              onClick={handleExport} 
+              disabled={isExporting}
+              className="print:hidden bg-primary hover:bg-primary-fixed-dim text-on-primary-container font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-transform active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-wait">
+              <span className="material-symbols-outlined text-sm">
+                {isExporting ? 'hourglass_empty' : 'picture_as_pdf'}
+              </span>
+              {isExporting ? 'Generating PDF...' : 'Export PDF'}
+            </button>
+          )}
+        </div>
       </section>
 
       {/* Dataset selector */}
       {datasets.filter(d => d.status === 'ready').length > 1 && (
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap print:hidden">
           {datasets.filter(d => d.status === 'ready').map(d => (
             <button key={d.id} onClick={() => setActive(d.id)}
               className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${d.id === ds?.id ? 'bg-primary text-on-primary' : 'bg-surface-container-high text-on-surface-variant hover:text-white'}`}
@@ -57,10 +86,10 @@ export default function Reports() {
       )}
 
       {ds && stats && (
-        <div className="grid grid-cols-12 gap-4 lg:gap-6">
+        <div id="report-content" className="grid grid-cols-12 gap-4 lg:gap-6">
 
           {/* ── Time Series Overview ── */}
-          <div className="col-span-12 lg:col-span-8 bg-surface-container-low rounded-2xl border border-outline-variant/5 p-5 sm:p-8 relative overflow-hidden">
+          <div className="col-span-12 lg:col-span-8 bg-surface-container-low rounded-2xl border border-outline-variant/5 p-5 sm:p-8 relative min-w-0 overflow-hidden">
             <div className="flex justify-between items-start mb-6">
               <div>
                 <h3 className="text-xl font-bold font-headline mb-1">
@@ -100,7 +129,7 @@ export default function Reports() {
           </div>
 
           {/* ── Section 5: Correlation Matrix ── */}
-          <div className="col-span-12 lg:col-span-4 bg-surface-container-low rounded-2xl border border-outline-variant/5 p-5 sm:p-8">
+          <div className="col-span-12 lg:col-span-4 bg-surface-container-low rounded-2xl border border-outline-variant/5 p-5 sm:p-8 min-w-0">
             <h3 className="text-xl font-bold font-headline mb-4">Correlation Matrix</h3>
             <CorrelationHeatmap
               matrix={stats.correlationMatrix}
@@ -110,7 +139,7 @@ export default function Reports() {
           </div>
 
           {/* ── Column Analysis Table ── */}
-          <div className="col-span-12 bg-surface-container-low rounded-2xl border border-outline-variant/5 overflow-hidden">
+          <div className="col-span-12 bg-surface-container-low rounded-2xl border border-outline-variant/5 overflow-hidden min-w-0">
             <div className="px-8 py-6 border-b border-outline-variant/5">
               <h3 className="text-xl font-bold font-headline">Numeric Column Analysis</h3>
               <p className="text-sm text-on-surface-variant mt-1">Full statistical profile of all numeric columns</p>
@@ -164,8 +193,52 @@ export default function Reports() {
             )}
           </div>
 
+          {/* ── Text Column Analysis Table ── */}
+          {stats.textColumns && stats.textColumns.length > 0 && (
+            <div className="col-span-12 bg-surface-container-low rounded-2xl border border-outline-variant/5 overflow-hidden min-w-0">
+              <div className="px-8 py-6 border-b border-outline-variant/5">
+                <h3 className="text-xl font-bold font-headline flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary">text_fields</span>
+                  Text & Unstructured Data Analysis
+                </h3>
+                <p className="text-sm text-on-surface-variant mt-1">Metrics on string lengths and symbol anomalies</p>
+              </div>
+              <div className="overflow-auto">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead className="bg-surface-container-high/50">
+                    <tr>
+                      {['Column', 'Non-Empty', 'Avg Letters', 'Avg Words', 'Whitespace Anomalies', 'Special Chars (<>{}[])'].map(h => (
+                        <th key={h} className="px-5 py-4 text-[10px] uppercase tracking-widest font-bold text-on-surface-variant whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="text-xs">
+                    {stats.textColumns.map(col => {
+                      const s = stats.textStats[col];
+                      if (!s) return null;
+                      return (
+                        <tr key={col} className="border-b border-outline-variant/5 hover:bg-surface-bright transition-colors">
+                          <td className="px-5 py-4 font-medium text-sm">{col}</td>
+                          <td className="px-5 py-4 font-mono">{s.totalNonEmpty.toLocaleString()}</td>
+                          <td className="px-5 py-4 font-mono text-primary">{s.avgLength.toLocaleString()}</td>
+                          <td className="px-5 py-4 font-mono">{s.avgWords.toLocaleString()}</td>
+                          <td className="px-5 py-4 font-mono">
+                            <span className={s.whitespaceAnomalies > 0 ? 'text-amber-400 font-bold' : 'text-secondary'}>{s.whitespaceAnomalies}</span>
+                          </td>
+                          <td className="px-5 py-4 font-mono">
+                            <span className={s.specialCharAnomalies > 0 ? 'text-error font-bold' : 'text-secondary'}>{s.specialCharAnomalies}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {/* ── Section 9: Auto-Generated Insights ── */}
-          <div className="col-span-12 lg:col-span-6 bg-surface-container-high rounded-2xl border border-outline-variant/10 p-5 sm:p-8">
+          <div className="col-span-12 lg:col-span-6 bg-surface-container-high rounded-2xl border border-outline-variant/10 p-5 sm:p-8 min-w-0">
             <div className="flex items-center gap-2 text-tertiary mb-6">
               <span className="material-symbols-outlined text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
               <span className="text-sm font-bold uppercase tracking-widest">Auto-Generated Insights</span>
@@ -180,7 +253,7 @@ export default function Reports() {
           </div>
 
           {/* ── Quality Summary Panel ── */}
-          <div className="col-span-12 lg:col-span-6 space-y-6">
+          <div className="col-span-12 lg:col-span-6 space-y-6 min-w-0">
             <div className="bg-surface-container-low rounded-2xl border border-outline-variant/10 p-5 sm:p-8">
               <h3 className="text-xl font-bold font-headline mb-4">Data Quality Summary</h3>
               <div className="grid grid-cols-2 gap-4 mb-6">
@@ -195,7 +268,7 @@ export default function Reports() {
         </div>
       )}
 
-      <footer className="mt-16 py-8 border-t border-outline-variant/5 flex justify-between items-center text-[10px] text-on-surface-variant uppercase tracking-[0.2em]">
+      <footer className="print:hidden mt-16 py-8 border-t border-outline-variant/5 flex justify-between items-center text-[10px] text-on-surface-variant uppercase tracking-[0.2em]">
         <div>© 2024 DataLens Analytics Engine</div>
         <div className="flex gap-6">
           <a className="hover:text-primary transition-colors cursor-pointer">Documentation</a>

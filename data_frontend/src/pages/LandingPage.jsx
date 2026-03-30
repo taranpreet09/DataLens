@@ -127,26 +127,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Quality Flags */}
-        {stats && (
-          <section className="space-y-4">
-            <h2 className="font-headline text-lg font-bold tracking-tight">Data Quality Flags</h2>
-            <QualityFlagChips flags={stats.qualityFlags.flags} />
-          </section>
-        )}
 
-        {/* Insight Cards */}
-        {stats?.insights?.length > 0 && (
-          <section className="space-y-4">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-tertiary" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
-              <h2 className="font-headline text-lg font-bold tracking-tight">Auto-Generated Insights</h2>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {stats.insights.map((ins, i) => <InsightCard key={i} insight={ins} />)}
-            </div>
-          </section>
-        )}
 
         {/* Recent Artifacts Table */}
         <section className="space-y-6">

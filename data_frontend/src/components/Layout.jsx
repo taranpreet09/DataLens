@@ -9,9 +9,9 @@ export default function Layout() {
   return (
     <div className="bg-surface text-on-surface antialiased selection:bg-primary/30 min-h-screen flex">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="flex-1 lg:ml-64 flex flex-col min-h-screen">
+      <div className="flex-1 min-w-0 w-full lg:ml-64 print:m-0 flex flex-col min-h-screen">
         <Topbar onMenuToggle={() => setSidebarOpen(o => !o)} />
-        <main className="flex-1">
+        <main className="flex-1 min-w-0 overflow-x-hidden">
           <Outlet />
         </main>
       </div>

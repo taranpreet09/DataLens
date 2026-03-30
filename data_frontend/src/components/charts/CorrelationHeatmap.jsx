@@ -45,15 +45,15 @@ export default function CorrelationHeatmap({ matrix, columns, insights = [] }) {
       {/* Matrix */}
       <div className="overflow-auto">
         {/* Header row */}
-        <div className="flex gap-1 mb-1" style={{ paddingLeft: '72px' }}>
+        <div className="flex gap-1 mb-1 pl-[64px] sm:pl-[72px]">
           {cols.map(c => (
-            <div key={c} className="flex-1 text-[9px] text-on-surface-variant text-center truncate font-medium min-w-[42px]">{c.length > 8 ? c.slice(0, 7) + '…' : c}</div>
+            <div key={c} className="flex-1 min-w-0 text-[8px] sm:text-[9px] text-on-surface-variant text-center truncate font-medium" title={c}>{c.length > 8 ? c.slice(0, 7) + '…' : c}</div>
           ))}
         </div>
         {/* Rows */}
         {cols.map(rowCol => (
           <div key={rowCol} className="flex gap-1 mb-1 items-center">
-            <span className="text-[9px] text-on-surface-variant w-[68px] text-right shrink-0 truncate font-medium pr-1">{rowCol.length > 10 ? rowCol.slice(0, 9) + '…' : rowCol}</span>
+            <span className="text-[8px] sm:text-[9px] text-on-surface-variant w-[60px] sm:w-[68px] text-right shrink-0 truncate font-medium pr-1" title={rowCol}>{rowCol.length > 10 ? rowCol.slice(0, 9) + '…' : rowCol}</span>
             {cols.map(colCol => {
               const v = matrix[rowCol]?.[colCol];
               const { bg, text } = corrColor(v);
@@ -63,7 +63,7 @@ export default function CorrelationHeatmap({ matrix, columns, insights = [] }) {
                   key={colCol}
                   onMouseEnter={() => setHover({ row: rowCol, col: colCol, v })}
                   onMouseLeave={() => setHover(null)}
-                  className={`flex-1 aspect-square rounded-sm flex items-center justify-center text-[10px] font-mono transition-all cursor-default min-w-[42px] ${isHovered ? 'ring-2 ring-white/40 scale-110 z-10' : ''}`}
+                  className={`flex-1 min-w-0 aspect-square rounded-sm flex items-center justify-center text-[9px] sm:text-[10px] font-mono transition-all cursor-default ${isHovered ? 'ring-2 ring-white/40 scale-110 z-10' : ''}`}
                   style={{ background: bg, color: text }}
                 >
                   {v !== null && v !== undefined ? v.toFixed(2) : '—'}
