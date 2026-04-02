@@ -1,59 +1,10 @@
-import { useEffect, useState } from "react";
 import { Link } from 'react-router-dom';
 import { motion } from "framer-motion";
-import Particles, { initParticlesEngine } from "@tsparticles/react";
-import { loadSlim } from "@tsparticles/slim";
+import NeonParticleCanvas from "../components/NeonParticleCanvas";
 
 export default function Home() {
-  const [init, setInit] = useState(false);
 
-  useEffect(() => {
-    initParticlesEngine(async (engine) => {
-      await loadSlim(engine);
-    }).then(() => {
-      setInit(true);
-    });
-  }, []);
 
-  const particlesOptions = {
-    background: { color: { value: "transparent" } },
-    fpsLimit: 120,
-    interactivity: {
-      events: {
-        onClick: { enable: true, mode: "push" },
-        onHover: { enable: true, mode: "repulse", parallax: { enable: true, force: 60, smooth: 10 } },
-        resize: true,
-      },
-      modes: {
-        push: { quantity: 2 },
-        repulse: { distance: 100, duration: 0.4 },
-      },
-    },
-    particles: {
-      color: { value: ["#94aaff", "#c799ff", "#5cfd80"] },
-      links: {
-        color: "#94aaff",
-        distance: 200,
-        enable: true,
-        opacity: 0.2,
-        width: 1,
-        triangles: { enable: true, opacity: 0.05 }
-      },
-      move: {
-        direction: "none",
-        enable: true,
-        outModes: { default: "bounce" },
-        random: false,
-        speed: 0.8,
-        straight: false,
-      },
-      number: { density: { enable: true, area: 1000 }, value: 120 },
-      opacity: { value: 0.6, animation: { enable: true, speed: 1, minimumValue: 0.1 } },
-      shape: { type: "circle" },
-      size: { value: { min: 1, max: 4 }, animation: { enable: true, speed: 2, minimumValue: 0.5 } },
-    },
-    detectRetina: true,
-  };
 
 
   const fadeUpVariant = {
@@ -62,7 +13,20 @@ export default function Home() {
   };
 
   return (
-    <div className="font-body selection:bg-primary/30 selection:text-primary overflow-x-hidden bg-[#0e0e0e] text-white min-h-screen">
+    <div className="font-body selection:bg-primary/30 selection:text-primary overflow-x-hidden bg-[#0e0e0e] text-white min-h-screen relative">
+      {/* Global Fixed Background */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <div className="absolute inset-0 z-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-primary/10 via-background/80 to-background pointer-events-none"></div>
+        <NeonParticleCanvas
+          particleCount={100}
+          interactive={true}
+          gridEnabled={true}
+          barsEnabled={false}
+          alwaysActive={true}
+          className="absolute inset-0 h-full w-full opacity-100 mix-blend-screen"
+        />
+      </div>
+      
       {/* TopNavBar */}
       <motion.nav 
         initial={{ opacity: 0, y: -20 }}
@@ -81,21 +45,17 @@ export default function Home() {
             <Link className="text-slate-400 hover:text-slate-200 transition-colors font-headline text-sm tracking-tight" to="#">Intelligence</Link>
           </div>
           <div className="flex items-center gap-6">
-            <Link to="/dashboard" className="text-slate-400 hover:text-slate-200 transition-colors font-headline text-sm tracking-tight">Sign In</Link>
-            <Link to="/dashboard" className="bg-primary hover:bg-primary-fixed-dim text-on-primary px-6 py-2.5 rounded-lg font-headline text-sm font-semibold transition-all duration-300 scale-95 active:scale-90 inline-block">
+            <Link to="/login" className="text-slate-400 hover:text-slate-200 transition-colors font-headline text-sm tracking-tight">Sign In</Link>
+            <Link to="/signup" className="bg-primary hover:bg-primary-fixed-dim text-on-primary px-6 py-2.5 rounded-lg font-headline text-sm font-semibold transition-all duration-300 scale-95 active:scale-90 inline-block">
               Get Started
             </Link>
           </div>
         </div>
       </motion.nav>
       
-      <main>
+      <main className="relative z-10">
         {/* Hero Section */}
         <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20">
-          <div className="absolute inset-0 z-0">
-            <div className="absolute inset-0 z-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-primary/10 via-background/80 to-background"></div>
-            {init && <Particles id="tsparticles" options={particlesOptions} className="absolute inset-0 z-0 h-full w-full mix-blend-screen" />}
-          </div>
           
           <motion.div 
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -133,7 +93,7 @@ export default function Home() {
         </section>
 
         {/* Data Ingestion (New Section) */}
-        <section className="py-32 bg-surface-container-lowest relative overflow-hidden">
+        <section className="py-32 relative overflow-hidden">
           <div className="max-w-screen-2xl mx-auto px-4 md:px-8 grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
             <motion.div 
               initial="hidden"
@@ -219,9 +179,17 @@ export default function Home() {
               transition={{ duration: 0.6, delay: 0.1 }}
               className="md:col-span-8 group relative overflow-hidden rounded-3xl bg-surface-container-low p-10 flex flex-col justify-end border border-outline-variant/10 shadow-2xl"
             >
-              <div className="absolute inset-0 z-0 transition-transform duration-1000 group-hover:scale-105">
-                <img className="w-full h-full object-cover opacity-60 mix-blend-screen" data-alt="futuristic digital map interface showing complex data clusters" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCe2JBXf9dPiV16N4Z_NH52oYnh9AxrDxP0h0avSObQ0fFX4ZurtMRs6Vndac1dCeNn06VgOobTIoDIuWY7I5z66PnFODNHd4JnerphXjK1VNwTpsnw3kNf3oNUqE8FpuyBwLlWEEKFRPQnMFUdO7Ft-wWOYUVNyKubM-v42FqvOQhDrKHs1az9LSP_7ZkrjOU-V3jcpEMZ3O4OfXAfXCIgnN1vknWoLlOawNhd8OxDdC1Yl1oLL43wyxaqNBfhhJQyynC8wdYQ1J0" alt="Data Map Background" />
-                <div className="absolute inset-0 bg-gradient-to-t from-surface-container-low via-transparent to-primary/10"></div>
+              <div className="absolute inset-0 z-0 overflow-hidden mix-blend-screen opacity-60 group-hover:opacity-100 transition-opacity duration-1000">
+                <NeonParticleCanvas
+                  particleCount={45}
+                  interactive={false}
+                  gridEnabled={false}
+                  barsEnabled={false}
+                  alwaysActive={false}
+                  className="absolute inset-0 w-full h-full"
+                />
+                {/* Bottom fade */}
+                <div className="absolute inset-0 bg-gradient-to-t from-surface-container-low via-transparent to-transparent pointer-events-none"></div>
               </div>
               <div className="relative z-10 translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
                 <span className="text-primary font-label text-xs tracking-widest uppercase mb-4 block">Visual Interface</span>
@@ -441,7 +409,7 @@ export default function Home() {
               <h2 className="text-3xl sm:text-4xl md:text-6xl font-headline font-extrabold mb-6 md:mb-8 tracking-tighter">Ready to Architect?</h2>
               <p className="text-on-surface-variant mb-10 md:mb-12 text-base md:text-lg px-4">Upload your first spreadsheet and experience the future of data intelligence.</p>
               <div className="flex flex-col sm:flex-row justify-center gap-4 w-full px-6">
-                <Link to="/dashboard" className="px-8 md:px-12 py-4 md:py-5 bg-primary text-on-primary rounded-2xl font-headline font-extrabold text-lg md:text-xl shadow-[0_10px_30px_rgba(148,170,255,0.3)] hover:scale-105 transition-all w-full sm:w-auto text-center relative overflow-hidden">
+                <Link to="/signup" className="px-8 md:px-12 py-4 md:py-5 bg-primary text-on-primary rounded-2xl font-headline font-extrabold text-lg md:text-xl shadow-[0_10px_30px_rgba(148,170,255,0.3)] hover:scale-105 transition-all w-full sm:w-auto text-center relative overflow-hidden">
                   <span className="relative z-10">Start Free Deployment</span>
                   <div className="absolute inset-0 bg-white/20 translate-y-[100%] hover:translate-y-0 transition-transform duration-300 rounded-2xl"></div>
                 </Link>
