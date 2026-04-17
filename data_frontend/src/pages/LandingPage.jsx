@@ -51,7 +51,7 @@ export default function LandingPage() {
             Scale your <span className="text-primary">Intelligence</span>.
           </h1>
           <p className="text-on-surface-variant text-base lg:text-lg max-w-2xl leading-relaxed">
-            Drag your structured datasets into the obsidian core. Our engine will architect the relationships, outliers, and projections automatically.
+            Drag your structured datasets into the DataLens core. Our engine will architect the relationships, outliers, and projections automatically.
           </p>
         </header>
 
