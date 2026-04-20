@@ -1,8 +1,6 @@
 import { NavLink } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 
 export default function Sidebar({ isOpen, onClose }) {
-  const { logout } = useAuth();
   const commonLinkClasses = "flex items-center gap-3 px-4 py-3 mx-2 rounded-lg transition-all duration-200";
   const activeLinkClasses = `bg-[#20201f] text-[#94aaff] ${commonLinkClasses} translate-x-1`;
   const inactiveLinkClasses = `text-gray-500 hover:text-gray-300 hover:bg-[#20201f] hover:translate-x-1 ${commonLinkClasses}`;
@@ -69,10 +67,10 @@ export default function Sidebar({ isOpen, onClose }) {
             <span className="material-symbols-outlined" data-icon="help_outline">help_outline</span>
             Support
           </a>
-          <button onClick={logout} className="w-full flex items-center gap-3 text-error-dim px-4 py-3 mx-0 hover:bg-error-container/10 rounded-lg transition-all">
+          <a href="#" className="flex items-center gap-3 text-error-dim px-4 py-3 mx-0 hover:bg-error-container/10 rounded-lg transition-all">
             <span className="material-symbols-outlined" data-icon="logout">logout</span>
             Sign Out
-          </button>
+          </a>
         </div>
       </aside>
     </>

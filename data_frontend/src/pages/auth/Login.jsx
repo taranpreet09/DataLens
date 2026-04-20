@@ -1,67 +1,8 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useAuth } from '../../context/AuthContext';
-import { useGoogleLogin } from '@react-oauth/google';
+import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import ParticleBackground from '../../components/ParticleBackground';
 
 export default function Login() {
-  const { login, loginWithGoogle, isAuthenticated } = useAuth();
-  const navigate = useNavigate();
-
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-
-  const googleLogin = useGoogleLogin({
-    onSuccess: async (tokenResponse) => {
-      setIsLoading(true);
-      setError('');
-      try {
-        await loginWithGoogle(tokenResponse.access_token);
-        navigate('/dashboard', { replace: true });
-      } catch (err) {
-        setError(err.message || 'Google Login failed.');
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    onError: () => {
-      setError('Google Login failed.');
-    }
-  });
-
-  // If already logged in, redirect
-  if (isAuthenticated) {
-    navigate('/dashboard', { replace: true });
-    return null;
-  }
-
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setError('');
-
-    if (!email.trim()) {
-      setError('Email is required.');
-      return;
-    }
-    if (!password) {
-      setError('Password is required.');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      await login(email.trim(), password);
-      navigate('/dashboard', { replace: true });
-    } catch (err) {
-      setError(err.message || 'Login failed. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
     <motion.div 
       initial={{ opacity: 0, filter: 'blur(10px)' }}
@@ -95,22 +36,7 @@ export default function Login() {
               <p className="font-body text-on-surface-variant text-sm font-medium opacity-80">Access your strategic insights portal.</p>
             </header>
 
-            {/* Error Message */}
-            <AnimatePresence>
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10, height: 0 }}
-                  animate={{ opacity: 1, y: 0, height: 'auto' }}
-                  exit={{ opacity: 0, y: -10, height: 0 }}
-                  className="mb-6 p-3 rounded-xl bg-error/10 border border-error/20 flex items-center gap-3"
-                >
-                  <span className="material-symbols-outlined text-error text-lg">error</span>
-                  <span className="text-error text-sm font-medium">{error}</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <form className="space-y-6" onSubmit={handleLogin}>
+            <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
               {/* Email Field */}
               <div className="space-y-2.5">
                 <label className="block font-headline text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant/70" htmlFor="email">Security Identity (Email)</label>
@@ -119,11 +45,7 @@ export default function Login() {
                     className="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-3.5 text-on-surface placeholder:text-outline/40 focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40 transition-all duration-500 font-body text-sm" 
                     id="email" 
                     placeholder="you@datalens.io" 
-                    type="email"
-                    value={email}
-                    onChange={(e) => { setEmail(e.target.value); setError(''); }}
-                    disabled={isLoading}
-                    autoComplete="email"
+                    type="email" 
                   />
                 </div>
               </div>
@@ -139,30 +61,15 @@ export default function Login() {
                     className="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-3.5 text-on-surface placeholder:text-outline/40 focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40 transition-all duration-500 font-body text-sm" 
                     id="password" 
                     placeholder="••••••••••••" 
-                    type="password"
-                    value={password}
-                    onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                    disabled={isLoading}
-                    autoComplete="current-password"
+                    type="password" 
                   />
                 </div>
               </div>
 
               {/* Login Button */}
-              <button 
-                type="submit"
-                disabled={isLoading}
-                className="block text-center w-full bg-primary hover:bg-primary-container text-on-primary font-headline font-extrabold text-sm uppercase tracking-widest py-4 rounded-xl transition-all duration-300 transform active:scale-[0.98] shadow-lg shadow-primary/10 border border-white/10 disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {isLoading ? (
-                  <span className="flex items-center justify-center gap-3">
-                    <span className="w-4 h-4 border-2 border-on-primary border-t-transparent rounded-full animate-spin"></span>
-                    Authenticating...
-                  </span>
-                ) : (
-                  'Initialize Session'
-                )}
-              </button>
+              <Link to="/dashboard" className="block text-center w-full bg-primary hover:bg-primary-container text-on-primary font-headline font-extrabold text-sm uppercase tracking-widest py-4 rounded-xl transition-all duration-300 transform active:scale-[0.98] shadow-lg shadow-primary/10 border border-white/10">
+                Initialize Session
+              </Link>
             </form>
 
             {/* Divider */}
@@ -174,12 +81,7 @@ export default function Login() {
 
             {/* Social Login Stack */}
             <div className="space-y-3">
-              <button 
-                onClick={() => googleLogin()}
-                disabled={isLoading}
-                className="w-full flex items-center justify-center gap-3 bg-white/5 hover:bg-white/10 border border-white/5 text-on-surface font-headline font-semibold text-xs py-3.5 rounded-xl transition-all duration-300 glow-hover disabled:opacity-50 disabled:cursor-not-allowed" 
-                type="button"
-              >
+              <button className="w-full flex items-center justify-center gap-3 bg-white/5 hover:bg-white/10 border border-white/5 text-on-surface font-headline font-semibold text-xs py-3.5 rounded-xl transition-all duration-300 glow-hover" type="button">
                 <svg className="w-4 h-4" viewBox="0 0 24 24">
                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"></path>
                   <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"></path>

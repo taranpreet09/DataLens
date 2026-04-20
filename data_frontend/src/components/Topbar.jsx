@@ -1,14 +1,6 @@
 import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 
 export default function Topbar({ onMenuToggle }) {
-  const { user } = useAuth();
-
-  // Generate initials from user's name
-  const initials = user?.fullName
-    ? user.fullName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
-    : '??';
-
   return (
     <header className="w-full h-14 lg:h-16 sticky top-0 z-40 bg-[#0e0e0e] dark:bg-[#0e0e0e] border-b border-[#262626]/50 flex justify-between items-center px-4 lg:px-8 font-['Manrope'] antialiased tracking-tight print:hidden">
       <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -38,15 +30,7 @@ export default function Topbar({ onMenuToggle }) {
           <span className="material-symbols-outlined">settings</span>
         </button>
         <div className="flex items-center gap-3 pl-3 lg:pl-4 border-l border-outline-variant/20 ml-1 lg:ml-2">
-          {/* User avatar with initials */}
-          <div className="w-8 h-8 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center">
-            <span className="text-xs font-bold text-primary">{initials}</span>
-          </div>
-          {user && (
-            <span className="hidden lg:block text-sm text-on-surface-variant font-medium truncate max-w-[120px]">
-              {user.fullName}
-            </span>
-          )}
+          <img alt="User profile avatar" className="w-8 h-8 rounded-full border border-outline-variant/50 object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCLNdPX7wHTlj_a_BQdycdUUhOUGfsYy1blkSJuTHnmkuscKMCPoPK2OQ-PgIqTPo2CH9uPws22XN6nbbtxZbYR76I7RxQFK0DythBc84ny7BPmF_ZATd7uv0IQusKQqZuNWtsbyExudf3NgzlpaH8_zW2vYJp2xyTtm8IV42aZZLheYcTz0P2NZmVnuQfANXzhnStAkRIO34zJxV61CLvMvIboMNuiGPIGdhRLc5a0igbgFRiyoytNlVbLJE1sD73v09CGupybGhw" />
         </div>
       </div>
     </header>
