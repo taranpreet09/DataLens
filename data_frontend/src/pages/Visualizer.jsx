@@ -12,18 +12,24 @@ export default function Visualizer() {
   const ds = activeDataset;
   const stats = ds?.stats;
 
+  // Filter out ignored/internal columns (IDs, Serial Numbers, etc.)
   const filterIgnoredCols = (keys) => keys.filter(k => !/^(s\.?no\.?|id|serial\s*no|uuid)$/i.test(k));
 
+  // Combine both numeric (histogram) and categorical columns for the Universal Distribution section
   const pureHistKeys = stats?.histogramBuckets ? Object.keys(stats.histogramBuckets) : [];
   const pureCatKeys = stats?.categoricalStats ? Object.keys(stats.categoricalStats) : [];
   const comboKeys = filterIgnoredCols([...new Set([...pureHistKeys, ...pureCatKeys])]);
 
   const [selectedHistCol, setSelectedHistCol] = useState(null);
-  const [histGraphType, setHistGraphType] = useState('pie');
-  useEffect(() => { if (comboKeys.length) setSelectedHistCol(comboKeys[0]); }, [ds?.id]);
+  const [histGraphType, setHistGraphType] = useState('pie'); // Default to pie as specifically requested
+  
+  useEffect(() => { 
+    if (comboKeys.length) setSelectedHistCol(comboKeys[0]); 
+  }, [ds?.id, comboKeys.length]);
   
   let histData = null;
   let comboChartData = [];
+  
   if (selectedHistCol) {
     if (stats?.histogramBuckets?.[selectedHistCol]) {
       histData = stats.histogramBuckets[selectedHistCol];
@@ -38,14 +44,14 @@ export default function Visualizer() {
   const [selectedCatCol, setSelectedCatCol] = useState(null);
   useEffect(() => {
     if (catAggKeys.length) setSelectedCatCol(catAggKeys[0]);
-  }, [ds?.id]);
+  }, [ds?.id, catAggKeys.length]);
   const catAgg = selectedCatCol && stats?.categoryAggregations?.[selectedCatCol];
 
   const catStatKeys = stats?.categoricalStats ? Object.keys(stats.categoricalStats) : [];
   const [selectedFreqCol, setSelectedFreqCol] = useState(null);
   useEffect(() => {
     if (catStatKeys.length) setSelectedFreqCol(catStatKeys[0]);
-  }, [ds?.id]);
+  }, [ds?.id, catStatKeys.length]);
   const freqData = selectedFreqCol && stats?.categoricalStats?.[selectedFreqCol];
 
   const kpis = [];
@@ -88,6 +94,7 @@ export default function Visualizer() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-10 space-y-8 max-w-[1600px] mx-auto w-full">
+      {/* Dataset Selector */}
       {datasets.filter((d) => d.status === 'ready').length > 1 && (
         <div className="flex gap-2 flex-wrap">
           {datasets
@@ -117,13 +124,16 @@ export default function Visualizer() {
 
       {ds && stats && (
         <>
+          {/* KPI Row */}
           <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {kpis.map((kpi, i) => (
               <KPICard key={i} {...kpi} />
             ))}
           </section>
 
+          {/* First Row: Continuous Distribution & Category Analysis */}
           <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+            {/* Time Series / Distribution Analysis (Left & Col-Span-2) */}
             <div className="lg:col-span-2 bg-surface-container p-5 sm:p-8 rounded-2xl flex flex-col min-h-[320px] lg:min-h-[420px] shadow-sm border border-outline-variant/5">
               <div className="flex justify-between items-center mb-6 flex-wrap gap-2">
                 <div>
@@ -174,6 +184,15 @@ export default function Visualizer() {
                 )}
               </div>
 
+              {/* Skew annotation */}
+              {!stats.timeSeries && histData && histData.skewDirection && histData.skewDirection !== 'symmetric' && (
+                <p className="text-[10px] text-amber-400 mt-3 flex items-center gap-1">
+                  <span className="material-symbols-outlined text-xs">info</span>
+                  Distribution is {histData.skewDirection} (skewness: {histData.skewValue})
+                </p>
+              )}
+
+              {/* Time series stats */}
               {stats.timeSeries && (
                 <div className="mt-4 grid grid-cols-3 gap-3 text-xs">
                   <div className="bg-surface-container-low rounded-lg p-3">
@@ -199,6 +218,7 @@ export default function Visualizer() {
               )}
             </div>
 
+            {/* Category Analysis (Right & Col-Span-1) */}
             <div className="bg-surface-container p-5 sm:p-8 rounded-2xl flex flex-col relative overflow-hidden shadow-sm border border-outline-variant/5">
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-2 bg-tertiary/10 rounded-lg">
