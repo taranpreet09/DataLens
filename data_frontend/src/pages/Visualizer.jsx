@@ -4,18 +4,35 @@ import KPICard from '../components/ui/KPICard';
 import DynamicTimeSeries from '../components/charts/DynamicTimeSeries';
 import DynamicBarChart from '../components/charts/DynamicBarChart';
 import DonutChart from '../components/charts/DonutChart';
+import EmptyChartState from '../components/charts/EmptyChartState';
+import DynamicChart from '../components/charts/DynamicChart';
 
 export default function Visualizer() {
   const { activeDataset, datasets, setActive } = useDataset();
   const ds = activeDataset;
   const stats = ds?.stats;
 
-  const histKeys = stats?.histogramBuckets ? Object.keys(stats.histogramBuckets) : [];
+  const filterIgnoredCols = (keys) => keys.filter(k => !/^(s\.?no\.?|id|serial\s*no|uuid)$/i.test(k));
+
+  const pureHistKeys = stats?.histogramBuckets ? Object.keys(stats.histogramBuckets) : [];
+  const pureCatKeys = stats?.categoricalStats ? Object.keys(stats.categoricalStats) : [];
+  const comboKeys = filterIgnoredCols([...new Set([...pureHistKeys, ...pureCatKeys])]);
+
   const [selectedHistCol, setSelectedHistCol] = useState(null);
-  useEffect(() => {
-    if (histKeys.length) setSelectedHistCol(histKeys[0]);
-  }, [ds?.id]);
-  const histData = selectedHistCol && stats?.histogramBuckets?.[selectedHistCol];
+  const [histGraphType, setHistGraphType] = useState('pie');
+  useEffect(() => { if (comboKeys.length) setSelectedHistCol(comboKeys[0]); }, [ds?.id]);
+  
+  let histData = null;
+  let comboChartData = [];
+  if (selectedHistCol) {
+    if (stats?.histogramBuckets?.[selectedHistCol]) {
+      histData = stats.histogramBuckets[selectedHistCol];
+      comboChartData = histData.bins.map(b => ({ range: b.range, count: b.count }));
+    } else if (stats?.categoricalStats?.[selectedHistCol]) {
+      histData = stats.categoricalStats[selectedHistCol];
+      comboChartData = histData.top10.map(c => ({ range: c.value, count: c.count }));
+    }
+  }
 
   const catAggKeys = stats?.categoryAggregations ? Object.keys(stats.categoryAggregations) : [];
   const [selectedCatCol, setSelectedCatCol] = useState(null);
@@ -71,7 +88,6 @@ export default function Visualizer() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-10 space-y-8 max-w-[1600px] mx-auto w-full">
-      {/* Dataset Selector */}
       {datasets.filter((d) => d.status === 'ready').length > 1 && (
         <div className="flex gap-2 flex-wrap">
           {datasets
@@ -101,47 +117,48 @@ export default function Visualizer() {
 
       {ds && stats && (
         <>
-          {/* KPI Row */}
           <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {kpis.map((kpi, i) => (
               <KPICard key={i} {...kpi} />
             ))}
           </section>
 
-          {/* Time Series + Category */}
-          <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Time Series / Histogram */}
-            <div className="lg:col-span-2 bg-surface-container p-5 sm:p-7 rounded-2xl border border-outline-variant/5">
-              <div className="flex justify-between items-start mb-5 gap-3 flex-wrap">
+          <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+            <div className="lg:col-span-2 bg-surface-container p-5 sm:p-8 rounded-2xl flex flex-col min-h-[320px] lg:min-h-[420px] shadow-sm border border-outline-variant/5">
+              <div className="flex justify-between items-center mb-6 flex-wrap gap-2">
                 <div>
                   <h3 className="text-lg font-headline font-bold mb-1">
-                    {stats.timeSeries ? 'Time Series Trend' : 'Distribution Histogram'}
+                    {stats.timeSeries ? 'Time Series Trend' : 'Distribution Analysis'}
                   </h3>
                   <p className="text-on-surface-variant text-xs">
                     {stats.timeSeries
                       ? `${stats.timeSeries.series.length} periods · ${stats.timeSeries.primaryCol}`
                       : histData
-                      ? `${selectedHistCol} · ${histData.skewDirection}`
+                      ? `${selectedHistCol} · ${histData.skewDirection ?? 'Distribution'}`
                       : 'Upload data with a date column for time series'}
                   </p>
                 </div>
-                {histKeys.length > 0 && !stats.timeSeries && (
-                  <select
-                    value={selectedHistCol ?? ''}
-                    onChange={(e) => setSelectedHistCol(e.target.value)}
-                    className="bg-surface-container-lowest border border-outline-variant/20 text-xs rounded-lg px-3 py-2 text-on-surface font-medium focus:ring-2 focus:ring-primary cursor-pointer"
-                  >
-                    {histKeys.map((k) => (
-                      <option key={k} value={k}>
-                        {k}
-                      </option>
-                    ))}
-                  </select>
-                )}
+                <div className="flex gap-2 flex-wrap">
+                  {comboKeys.length > 0 && !stats.timeSeries && (
+                    <select value={selectedHistCol ?? ''} onChange={e => setSelectedHistCol(e.target.value)}
+                      className="bg-surface-container-lowest border border-outline-variant/20 text-xs rounded-lg px-4 py-2.5 text-on-surface font-medium focus:ring-2 focus:ring-primary cursor-pointer truncate">
+                      {comboKeys.map(k => <option key={k} value={k}>{k}</option>)}
+                    </select>
+                  )}
+                  {!stats.timeSeries && histData && (
+                    <select value={histGraphType} onChange={e => setHistGraphType(e.target.value)}
+                      className="bg-surface-container-lowest border border-outline-variant/20 text-xs rounded-lg px-4 py-2.5 text-primary font-bold focus:ring-2 focus:ring-primary cursor-pointer">
+                      <option value="bar">Bar Chart</option>
+                      <option value="pie">Pie Chart</option>
+                      <option value="area">Area Graph</option>
+                      <option value="scatter">Dotted Graph</option>
+                      <option value="histogram">Histogram</option>
+                    </select>
+                  )}
+                </div>
               </div>
-
-              {/* FIXED: explicit pixel height on the chart wrapper */}
-              <div style={{ height: 280 }}>
+              
+              <div className="flex-grow relative h-full min-h-[280px]">
                 {stats.timeSeries ? (
                   <DynamicTimeSeries
                     data={stats.timeSeries.series}
@@ -151,35 +168,23 @@ export default function Visualizer() {
                     trendDirection={stats.timeSeries.trendDirection}
                   />
                 ) : histData ? (
-                  <DynamicBarChart data={histData.bins} xAxisKey="range" barKey="count" color="#94aaff" />
+                  <DynamicChart data={comboChartData} graphType={histGraphType} xAxisKey="range" yAxisKey="count" />
                 ) : (
-                  <div className="flex flex-col items-center justify-center h-full opacity-40 gap-2">
-                    <span className="material-symbols-outlined text-4xl">bar_chart</span>
-                    <p className="text-xs text-on-surface-variant">No numeric data to visualize</p>
-                  </div>
+                  <EmptyChartState />
                 )}
               </div>
 
-              {/* Skew annotation */}
-              {!stats.timeSeries && histData && histData.skewDirection !== 'symmetric' && (
-                <p className="text-[10px] text-amber-400 mt-3 flex items-center gap-1">
-                  <span className="material-symbols-outlined text-xs">info</span>
-                  Distribution is {histData.skewDirection} (skewness: {histData.skewValue})
-                </p>
-              )}
-
-              {/* Time series stats */}
               {stats.timeSeries && (
                 <div className="mt-4 grid grid-cols-3 gap-3 text-xs">
                   <div className="bg-surface-container-low rounded-lg p-3">
                     <p className="text-on-surface-variant text-[10px] uppercase tracking-widest font-bold mb-1">Peak</p>
-                    <p className="font-bold text-primary">{stats.timeSeries.peak?.value?.toLocaleString()}</p>
-                    <p className="text-on-surface-variant text-[10px]">{stats.timeSeries.peak?.date}</p>
+                    <p className="font-bold text-primary truncate">{stats.timeSeries.peak?.value?.toLocaleString()}</p>
+                    <p className="text-on-surface-variant text-[10px] truncate">{stats.timeSeries.peak?.date}</p>
                   </div>
                   <div className="bg-surface-container-low rounded-lg p-3">
                     <p className="text-on-surface-variant text-[10px] uppercase tracking-widest font-bold mb-1">Trough</p>
-                    <p className="font-bold text-error">{stats.timeSeries.trough?.value?.toLocaleString()}</p>
-                    <p className="text-on-surface-variant text-[10px]">{stats.timeSeries.trough?.date}</p>
+                    <p className="font-bold text-error truncate">{stats.timeSeries.trough?.value?.toLocaleString()}</p>
+                    <p className="text-on-surface-variant text-[10px] truncate">{stats.timeSeries.trough?.date}</p>
                   </div>
                   <div className="bg-surface-container-low rounded-lg p-3">
                     <p className="text-on-surface-variant text-[10px] uppercase tracking-widest font-bold mb-1">P/T Ratio</p>
@@ -194,8 +199,7 @@ export default function Visualizer() {
               )}
             </div>
 
-            {/* Category Analysis */}
-            <div className="bg-surface-container p-5 sm:p-7 rounded-2xl border border-outline-variant/5 flex flex-col">
+            <div className="bg-surface-container p-5 sm:p-8 rounded-2xl flex flex-col relative overflow-hidden shadow-sm border border-outline-variant/5">
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-2 bg-tertiary/10 rounded-lg">
                   <span className="material-symbols-outlined text-tertiary text-lg">data_exploration</span>
