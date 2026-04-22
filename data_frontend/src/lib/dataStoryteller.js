@@ -1,4 +1,4 @@
-// ─── DataLens — Plain-English Data Storytelling Engine ─────────────────────────
+// ─── Obsidian Analytics — Plain-English Data Storytelling Engine ─────────────────────────
 // Translates raw statistical findings into human-readable narratives.
 // Zero React dependencies. Pure functions.
 

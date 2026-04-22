@@ -122,7 +122,7 @@ export function DatasetProvider({ children }) {
         if (isMounted && localDatasets.length > 0) {
           dispatch({ type: 'SET_ALL', payload: localDatasets, activeId: localActiveId });
         }
-      } catch (err) { /* ignore */ }
+      } catch { /* ignore */ }
 
       // 2. Fetch from backend if logged in
       const token = getToken();
@@ -183,6 +183,11 @@ export function DatasetProvider({ children }) {
   }, [isAuthenticated]);
 
   const uploadDataset = useCallback(async (file) => {
+    const token = getToken();
+    if (!isAuthenticated || !token) {
+      throw new Error('Please sign in before uploading datasets.');
+    }
+
     const id = `ds-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const name = file.name;
     const size = file.size;
@@ -212,7 +217,6 @@ export function DatasetProvider({ children }) {
         payload: { id, status: 'ready', headers: parsed.headers, rows: parsed.rows, rowCount: parsed.rowCount, stats, parseTime },
       });
 
-      const token = getToken();
       if (token) {
         console.log(`📤 Saving dataset "${name}" to backend (${parsed.rowCount} rows)...`);
         try {
@@ -232,14 +236,12 @@ export function DatasetProvider({ children }) {
         } catch (fetchErr) {
           console.error('❌ Network error saving dataset:', fetchErr.message);
         }
-      } else {
-        console.log('⚠️ No auth token — dataset saved locally only (guest mode)');
       }
     } catch (err) {
       dispatch({ type: 'UPDATE_DATASET', payload: { id, status: 'error', error: err.message } });
     }
     return id;
-  }, []);
+  }, [isAuthenticated]);
 
   // ─── 1-Click Clean: Standardize the active dataset ────────────────────
   const cleanDataset = useCallback((datasetId) => {

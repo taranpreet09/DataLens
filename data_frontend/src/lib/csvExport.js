@@ -1,4 +1,4 @@
-// ─── DataLens — CSV Export Utility ──────────────────────────────────────────────
+// ─── Obsidian Analytics — CSV Export Utility ──────────────────────────────────────────────
 // Exports cleaned/filtered dataset rows back to a downloadable CSV file.
 
 function escapeCSV(val) {
@@ -31,7 +31,7 @@ export function toCSVString(headers, rows) {
  * @param {object[]} rows
  * @param {string} filename
  */
-export function downloadCSV(headers, rows, filename = 'DataLens-Export.csv') {
+export function downloadCSV(headers, rows, filename = 'Obsidian Analytics-Export.csv') {
   const csvContent = toCSVString(headers, rows);
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);

@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDataset } from '../context/DatasetContext';
+import { useAuth } from '../context/AuthContext';
 import ArtifactTable from '../components/ui/ArtifactTable';
 import QualityBadge from '../components/ui/QualityBadge';
 import QualityFlagChips from '../components/ui/QualityFlagChips';
@@ -14,6 +15,7 @@ function formatBytes(bytes) {
 
 export default function LandingPage() {
   const { datasets, uploadDataset, deleteDataset, setActive } = useDataset();
+  const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
@@ -21,16 +23,26 @@ export default function LandingPage() {
 
   const handleFiles = useCallback(async (files) => {
     setUploadError(null);
+    if (!isAuthenticated) {
+      setUploadError('Please sign in before uploading datasets.');
+      navigate('/login');
+      return;
+    }
+
     let lastUploadedId = null;
     for (const file of Array.from(files)) {
       const ext = file.name.split('.').pop().toLowerCase();
       if (!['csv', 'xlsx', 'xls'].includes(ext)) { setUploadError(`"${file.name}" is not supported. Use CSV or Excel.`); continue; }
       if (file.size > 10 * 1024 * 1024) { setUploadError(`"${file.name}" exceeds the 10 MB limit.`); continue; }
-      const newId = await uploadDataset(file);
-      if (newId) lastUploadedId = newId;
+      try {
+        const newId = await uploadDataset(file);
+        if (newId) lastUploadedId = newId;
+      } catch (err) {
+        setUploadError(err.message || 'Upload failed.');
+      }
     }
     if (lastUploadedId) { setActive(lastUploadedId); navigate('/visualizer'); }
-  }, [uploadDataset, navigate, setActive]);
+  }, [isAuthenticated, uploadDataset, navigate, setActive]);
 
   const onDrop = useCallback((e) => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }, [handleFiles]);
   const onDragOver = (e) => { e.preventDefault(); setDragOver(true); };
@@ -51,7 +63,7 @@ export default function LandingPage() {
             Scale your <span className="text-primary">Intelligence</span>.
           </h1>
           <p className="text-on-surface-variant text-base lg:text-lg max-w-2xl leading-relaxed">
-            Drag your structured datasets into the DataLens core. Our engine will architect the relationships, outliers, and projections automatically.
+            Drag your structured datasets into the Obsidian Analytics core. Our engine will architect the relationships, outliers, and projections automatically.
           </p>
         </header>
 

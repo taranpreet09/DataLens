@@ -25,7 +25,7 @@ export default function SignupLayout() {
             <div className="w-7 h-7 bg-primary rounded-sm flex items-center justify-center overflow-hidden">
               <div className="w-3.5 h-3.5 bg-on-primary rotate-45 transform"></div>
             </div>
-            <span className="font-headline font-extrabold text-lg tracking-tighter text-on-surface">DataLens</span>
+            <span className="font-headline font-extrabold text-lg tracking-tighter text-on-surface">Obsidian Analytics</span>
           </div>
         </header>
 

@@ -1,6 +1,6 @@
-# 💎 DataLens — Advanced Analytics Engine (Eval 1)
+# 💎 Obsidian Analytics — Advanced Analytics Engine (Eval 1)
 
-**DataLens** is a high-performance, browser-native analytics platform designed to transform raw tabular data (CSV, XLSX, XLS) into professional-grade intelligence. Built with an "Obsidian" dark design aesthetic, it provides 13+ statistical computation layers, automated quality scoring, and interactive visualizations.
+**Obsidian Analytics** is a high-performance, browser-native analytics platform designed to transform raw tabular data (CSV, XLSX, XLS) into professional-grade intelligence. Built with an "Obsidian" dark design aesthetic, it provides 13+ statistical computation layers, automated quality scoring, and interactive visualizations.
 
 ![Status: Evaluation 1 Ready](https://img.shields.io/badge/Status-Eval_1_Ready-success?style=for-the-badge&logo=react)
 ![Theme: Obsidian Dark](https://img.shields.io/badge/Theme-Obsidian_Dark-blue?style=for-the-badge&logo=tailwindcss)
@@ -45,11 +45,11 @@
 ### Installation
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/DataLens.git
+   git clone https://github.com/your-username/obsidian-analytics.git
    ```
 2. Navigate to the frontend directory:
    ```bash
-   cd DataLens/data_frontend
+   cd obsidian-analytics/data_frontend
    ```
 3. Install dependencies:
    ```bash

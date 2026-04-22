@@ -59,7 +59,7 @@ export default function Login() {
       <div className="h-full flex flex-col items-center justify-center relative z-10 px-6 w-full">
         {/* Branding */}
         <div className="mb-8 text-center">
-          <h1 className="font-headline text-4xl font-extrabold tracking-tighter text-primary mb-1">DataLens</h1>
+          <h1 className="font-headline text-4xl font-extrabold tracking-tighter text-primary mb-1">Obsidian Analytics</h1>
           <p className="font-headline font-semibold text-on-surface-variant/60 text-xs tracking-[0.3em] uppercase">
             Enterprise Intelligence Architect
           </p>
@@ -90,7 +90,7 @@ export default function Login() {
                   <input
                     className="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-3 text-on-surface placeholder:text-outline/40 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/40 transition-all text-sm"
                     id="email"
-                    placeholder="you@datalens.io"
+                    placeholder="you@obsidiananalytics.io"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}

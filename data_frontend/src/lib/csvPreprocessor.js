@@ -1,4 +1,4 @@
-// ─── DataLens — CSV Pre-processor ──────────────────────────────────────────────
+// ─── Obsidian Analytics — CSV Pre-processor ──────────────────────────────────────────────
 // Runs on raw CSV text BEFORE parsing.
 // Fixes structural issues like unquoted commas in numeric/compound values
 // that would cause column shifting after parsing.
@@ -244,7 +244,7 @@ export function preprocessCSV(rawText) {
   }
 
   if (fixedCount > 0) {
-    console.log(`[DataLens CSV Pre-processor] Fixed ${fixedCount} structurally misaligned rows.`);
+    console.log(`[Obsidian Analytics CSV Pre-processor] Fixed ${fixedCount} structurally misaligned rows.`);
   }
 
   return fixedLines.join('\n');

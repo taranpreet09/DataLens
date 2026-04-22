@@ -35,7 +35,7 @@ export default function Home() {
       >
         <div className="flex justify-between items-center px-4 md:px-8 py-6 max-w-screen-2xl mx-auto">
           <div className="text-xl font-bold tracking-tighter text-slate-50 font-headline">
-            DataLens
+            Obsidian Analytics
           </div>
           <div className="hidden md:flex items-center gap-10">
             <Link className="text-blue-400 font-semibold border-b-2 border-blue-500 pb-1 font-headline text-sm tracking-tight" to="/">Platform</Link>
@@ -64,13 +64,13 @@ export default function Home() {
           >
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-outline-variant bg-surface-container-low/50 backdrop-blur-md mb-8">
               <span className="w-2 h-2 rounded-full bg-secondary animate-pulse shadow-[0_0_10px_#5cfd80]"></span>
-              <span className="text-xs font-label uppercase tracking-widest text-on-surface-variant">DataLens Ingestion Engine Active</span>
+              <span className="text-xs font-label uppercase tracking-widest text-on-surface-variant">Obsidian Analytics Ingestion Engine Active</span>
             </div>
             <h1 className="text-6xl md:text-8xl font-headline font-extrabold tracking-tighter leading-tight mb-8">
               Scale Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-tertiary to-secondary">Intelligence</span>
             </h1>
-            <p className="text-lg md:text-xl text-on-surface-variant font-body max-w-2xl mx-auto mb-12 leading-relaxed">
-              DataLens is the engine for hyper-scale data operations. Upload your raw signals and transform them into architectural clarity with our advanced processing core.
+              <p className="text-lg md:text-xl text-on-surface-variant font-body max-w-2xl mx-auto mb-12 leading-relaxed">
+              Obsidian Analytics helps turn raw CSV and Excel files into clear statistics, quality checks, visualizations, and plain-English insights.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
               <Link to="/dashboard" className="w-full sm:w-auto px-10 py-4 bg-primary text-on-primary rounded-xl font-headline font-bold text-lg hover:shadow-[0_0_30px_rgba(148,170,255,0.4)] transition-all flex items-center justify-center gap-3">
@@ -86,7 +86,7 @@ export default function Home() {
               <span className="w-1 h-1 bg-outline-variant rounded-full"></span>
               <span>.XLSX</span>
               <span className="w-1 h-1 bg-outline-variant rounded-full"></span>
-              <span>.JSON</span>
+              <span>.XLS</span>
             </div>
           </motion.div>
         </section>
@@ -129,7 +129,7 @@ export default function Home() {
             >
               <span className="text-secondary font-label text-xs tracking-widest uppercase block">The Intake Layer</span>
               <h2 className="text-4xl md:text-6xl font-headline font-extrabold tracking-tighter leading-tight">Zero-Config Data Analysis</h2>
-              <p className="text-on-surface-variant text-lg leading-relaxed">Stop wrestling with schema definitions. DataLens automatically detects types, relationships, and anomalies in your Excel and CSV files the moment they touch our servers.</p>
+              <p className="text-on-surface-variant text-lg leading-relaxed">Stop wrestling with schema definitions. Obsidian Analytics automatically detects types, relationships, and anomalies in your Excel and CSV files after upload.</p>
               <ul className="space-y-6">
                 <li className="flex items-start gap-4">
                   <span className="material-symbols-outlined text-secondary">check_circle</span>
@@ -148,8 +148,8 @@ export default function Home() {
                 <li className="flex items-start gap-4">
                   <span className="material-symbols-outlined text-secondary">check_circle</span>
                   <div className="text-sm">
-                    <strong className="text-on-surface block mb-1">Sub-second Parsing</strong>
-                    100MB files processed in under 400ms for immediate exploration.
+                    <strong className="text-on-surface block mb-1">Fast Parsing</strong>
+                    Files are processed quickly so users can move straight into exploration.
                   </div>
                 </li>
               </ul>
@@ -193,7 +193,7 @@ export default function Home() {
               <div className="relative z-10 translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
                 <span className="text-primary font-label text-xs tracking-widest uppercase mb-4 block">Visual Interface</span>
                 <h3 className="text-3xl font-headline font-bold mb-4">Deep Cluster Mapping</h3>
-                <p className="text-on-surface-variant max-w-md">Real-time visualization of petabyte-scale datasets using our proprietary gravitational sorting algorithm.</p>
+                <p className="text-on-surface-variant max-w-md">Interactive visualization helps users explore uploaded datasets, spot patterns, and compare fields quickly.</p>
               </div>
             </motion.div>
             
@@ -206,13 +206,13 @@ export default function Home() {
             >
               <div>
                 <span className="material-symbols-outlined text-4xl text-tertiary mb-6 group-hover:scale-110 transition-transform">dynamic_form</span>
-                <h3 className="text-2xl font-headline font-bold mb-3">DataLens Explorer</h3>
-                <p className="text-on-surface-variant text-sm">Query across dimensions without the bottleneck of traditional relational structures.</p>
+                <h3 className="text-2xl font-headline font-bold mb-3">Obsidian Analytics Explorer</h3>
+                <p className="text-on-surface-variant text-sm">Review column summaries, quality signals, and unusual values without writing formulas.</p>
               </div>
               <div className="pt-8 mt-8 border-t border-outline-variant/10">
                 <div className="flex items-center justify-between text-xs font-label text-on-surface-variant uppercase tracking-tighter">
-                  <span>Latent Speed</span>
-                  <span className="text-tertiary font-bold tracking-widest">0.002ms</span>
+                  <span>Workflow</span>
+                  <span className="text-tertiary font-bold tracking-widest">guided</span>
                 </div>
               </div>
             </motion.div>
@@ -250,7 +250,7 @@ export default function Home() {
               <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full blur-[100px] group-hover:bg-primary/30 transition-colors duration-1000"></div>
               <div className="flex-1 relative z-10">
                 <h3 className="text-3xl font-headline font-bold mb-4 text-on-primary-container">Universal Integration</h3>
-                <p className="text-on-primary-container/80 mb-6">Connect to any stack. From legacy mainframes to edge nodes, DataLens acts as the central analytics layer.</p>
+                <p className="text-on-primary-container/80 mb-6">Analyze spreadsheet data, clean common issues, and turn results into charts and reports from one workspace.</p>
                 <button className="px-6 py-3 bg-on-primary-container text-primary hover:bg-white rounded-lg font-headline font-bold text-sm transition-colors">Deploy Node</button>
               </div>
               <div className="flex-1 grid grid-cols-3 gap-4 w-full cursor-default relative z-10">
@@ -285,10 +285,10 @@ export default function Home() {
               className="grid grid-cols-1 md:grid-cols-4 gap-12"
             >
               {[
-                { value: "14.8PB", label: "Daily Throughput", color: "text-primary" },
-                { value: "99.999%", label: "Architecture Uptime", color: "text-secondary" },
-                { value: "<2ms", label: "Global Latency", color: "text-tertiary" },
-                { value: "1.2B", label: "Signals Captured", color: "text-on-surface" }
+                { value: "13+", label: "Computation Layers", color: "text-primary" },
+                { value: "11+", label: "Quality Checks", color: "text-secondary" },
+                { value: "3", label: "File Formats", color: "text-tertiary" },
+                { value: "100", label: "Quality Score Scale", color: "text-on-surface" }
               ].map((stat, i) => (
                 <motion.div 
                   key={i}
@@ -306,7 +306,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* DataLens Explorer Section */}
+        {/* Obsidian Analytics Explorer Section */}
         <section className="py-32 relative">
           <div className="max-w-screen-2xl mx-auto px-4 md:px-8 flex flex-col lg:flex-row items-center gap-20">
             <motion.div 
@@ -316,7 +316,7 @@ export default function Home() {
                transition={{ duration: 0.8 }}
                className="lg:w-1/2"
             >
-              <h2 className="text-4xl md:text-6xl font-headline font-extrabold mb-8 tracking-tighter">DataLens Explorer</h2>
+              <h2 className="text-4xl md:text-6xl font-headline font-extrabold mb-8 tracking-tighter">Obsidian Analytics Explorer</h2>
               <div className="space-y-8">
                 <div className="flex gap-6 group">
                   <div className="flex-shrink-0 w-12 h-12 rounded-full bg-primary-container/20 flex items-center justify-center border border-primary/30 group-hover:bg-primary/20 transition-colors">
@@ -354,7 +354,7 @@ export default function Home() {
                   <div className="ml-4 text-[10px] font-label text-on-surface-variant uppercase tracking-widest">Query Console</div>
                 </div>
                 <div className="p-4 sm:p-6 font-mono text-xs sm:text-sm space-y-3 overflow-x-auto">
-                  <div className="flex gap-4 whitespace-nowrap opacity-80"><span className="text-on-surface-variant">01</span> <span className="text-secondary">SELECT</span> intelligence_stream <span className="text-secondary">FROM</span> datalens_core</div>
+                  <div className="flex gap-4 whitespace-nowrap opacity-80"><span className="text-on-surface-variant">01</span> <span className="text-secondary">SELECT</span> insight_stream <span className="text-secondary">FROM</span> obsidian_core</div>
                   <div className="flex gap-4 whitespace-nowrap opacity-80"><span className="text-on-surface-variant">02</span> <span className="text-secondary">WHERE</span> source_type == 'EXCEL' <span className="text-secondary">AND</span> category == 'ANALYTICS'</div>
                   <div className="flex gap-4 whitespace-nowrap opacity-80"><span className="text-on-surface-variant">03</span> <span className="text-secondary">TRANSFORM</span> raw_csv <span className="text-primary">AS</span> 'galaxy_view'</div>
                   <div className="flex gap-4 whitespace-nowrap mt-2"><span className="text-on-surface-variant">04</span> <span className="text-primary-container">RUN</span> architectural_optimization_sequence()</div>
@@ -422,7 +422,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="w-full py-12 px-8 border-t border-slate-800/30 bg-[#0e0e0e]">
         <div className="max-w-screen-2xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="text-lg font-black text-slate-100 font-headline">DataLens Architect</div>
+          <div className="text-lg font-black text-slate-100 font-headline">Obsidian Analytics Architect</div>
           <div className="flex flex-wrap justify-center gap-8">
             <Link className="text-slate-500 hover:text-emerald-400 transition-colors font-['Inter'] text-xs tracking-wide uppercase opacity-80 hover:opacity-100" to="#">Privacy Policy</Link>
             <Link className="text-slate-500 hover:text-emerald-400 transition-colors font-['Inter'] text-xs tracking-wide uppercase opacity-80 hover:opacity-100" to="#">Terms of Service</Link>
@@ -430,7 +430,7 @@ export default function Home() {
             <Link className="text-slate-500 hover:text-emerald-400 transition-colors font-['Inter'] text-xs tracking-wide uppercase opacity-80 hover:opacity-100" to="#">Global Infrastructure</Link>
           </div>
           <div className="text-slate-500 font-['Inter'] text-xs tracking-wide uppercase opacity-80 text-center">
-            © 2024 DataLens. All rights reserved. Precision in every pixel.
+            © 2024 Obsidian Analytics. All rights reserved. Precision in every pixel.
           </div>
         </div>
       </footer>

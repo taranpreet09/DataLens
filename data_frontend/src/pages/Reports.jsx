@@ -18,7 +18,7 @@ export default function Reports() {
     if (isExporting || !ds) return;
     setIsExporting(true);
     try {
-      await exportReportToPDF(ds, `DataLens-Report-${ds.name.split('.')[0]}.pdf`);
+      await exportReportToPDF(ds, `Obsidian Analytics-Report-${ds.name.split('.')[0]}.pdf`);
     } catch (e) {
       console.error('PDF Export Error:', e);
       alert(`Failed to generate PDF: ${e.message || String(e)}`);
@@ -85,7 +85,56 @@ export default function Reports() {
       )}
 
       {ds && stats && (
-        <div id="report-content" className="grid grid-cols-12 gap-4 lg:gap-6">
+        <div id="report-content" className="space-y-6 lg:space-y-8">
+          
+          {/* 🔍 Executive Summary Panel */}
+          <div className="bg-surface-container-low rounded-2xl border border-primary/20 p-6 lg:p-8 shadow-xl shadow-primary/5">
+            <div className="flex items-center gap-3 mb-6">
+              <span className="material-symbols-outlined text-primary text-2xl font-bold">assignment_turned_in</span>
+              <h2 className="text-2xl font-bold font-headline tracking-tight">Executive Summary</h2>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <SummaryCard 
+                label="Data Health Index" 
+                value={`${stats.qualityScore}/100`} 
+                desc={stats.qualityScore >= 80 ? "High Integrity" : stats.qualityScore >= 50 ? "Moderate Integrity" : "Action Required"}
+                icon="health_and_safety"
+                color={stats.qualityScore >= 80 ? "text-secondary" : stats.qualityScore >= 50 ? "text-amber-400" : "text-error"}
+              />
+              <SummaryCard 
+                label="Record Volume" 
+                value={ds.rowCount?.toLocaleString()} 
+                desc={`${ds.headers?.length} attributes analyzed`}
+                icon="database"
+              />
+              <SummaryCard 
+                label="Primary Trend" 
+                value={stats.timeSeries ? stats.timeSeries.trendDirection : "Stable"} 
+                desc={stats.timeSeries ? `Across ${stats.timeSeries.series.length} periods` : "No temporal variance"}
+                icon="trending_up"
+                color={stats.timeSeries?.trendDirection === 'Upward trend' ? 'text-secondary' : 'text-on-surface'}
+              />
+              <SummaryCard 
+                label="Key Correlation" 
+                value={stats.correlationInsights?.[0] ? `${stats.correlationInsights[0].r.toFixed(2)} r` : "None"} 
+                desc={stats.correlationInsights?.[0] ? stats.correlationInsights[0].text.split('—')[0] : "No significant links"}
+                icon="hub"
+              />
+            </div>
+
+            <div className="mt-8 p-4 bg-surface-container rounded-xl border border-outline-variant/10">
+              <h4 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2">Automated Narrative Analysis</h4>
+              <p className="text-sm text-on-surface leading-relaxed italic">
+                "Technical analysis of <strong>{ds.name}</strong> reveals a {stats.qualityScore >= 80 ? 'highly reliable' : 'varied'} dataset structure. 
+                {stats.qualityFlags.totalNullCount > 0 ? ` We detected ${stats.qualityFlags.totalNullCount.toLocaleString()} missing values which may impact granular accuracy.` : ' Data density is optimal with no significant missingness.'}
+                {stats.timeSeries ? ` A distinct ${stats.timeSeries.trendDirection.toLowerCase()} is visible in the primary metric.` : ''}
+                {stats.correlationInsights?.[0] ? ` The strongest behavioral link exists between ${stats.correlationInsights[0].text.split('are')[0].trim()}.` : ''}"
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-12 gap-4 lg:gap-6">
 
           {/* ── Time Series Overview ── */}
           <div className="col-span-12 lg:col-span-8 bg-surface-container-low rounded-2xl border border-outline-variant/5 p-5 sm:p-8 relative min-w-0 overflow-hidden">
@@ -252,10 +301,11 @@ export default function Reports() {
             </div>
           </div>
         </div>
-      )}
+      </div>
+    )}
 
       <footer className="print:hidden mt-16 py-8 border-t border-outline-variant/5 flex justify-between items-center text-[10px] text-on-surface-variant uppercase tracking-[0.2em]">
-        <div>© 2025 DataLens Analytics Engine</div>
+        <div>© 2025 Obsidian Analytics Engine</div>
         <div className="flex gap-6">
           <a className="hover:text-primary transition-colors cursor-pointer">Documentation</a>
           <a className="hover:text-primary transition-colors cursor-pointer">System Status</a>
@@ -273,6 +323,19 @@ function QualityStat({ label, value, icon, color = 'text-on-surface' }) {
         <p className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">{label}</p>
         <p className={`text-sm font-bold font-headline ${color}`}>{value}</p>
       </div>
+    </div>
+  );
+}
+
+function SummaryCard({ label, value, desc, icon, color = "text-on-surface" }) {
+  return (
+    <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/5 hover:border-primary/20 transition-all group">
+      <div className="flex items-center gap-3 mb-3">
+        <span className="material-symbols-outlined text-primary-dim text-xl group-hover:scale-110 transition-transform">{icon}</span>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">{label}</span>
+      </div>
+      <div className={`text-2xl font-black font-headline tracking-tighter ${color} mb-1`}>{value}</div>
+      <div className="text-xs text-on-surface-variant line-clamp-1">{desc}</div>
     </div>
   );
 }

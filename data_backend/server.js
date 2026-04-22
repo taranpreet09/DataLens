@@ -48,7 +48,7 @@ async function start() {
   }
 
   app.listen(PORT, () => {
-    console.log(`🚀 DataLens API running on http://localhost:${PORT}`);
+    console.log(`🚀 Obsidian Analytics API running on http://localhost:${PORT}`);
   });
 }
 

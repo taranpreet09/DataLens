@@ -5,10 +5,10 @@ import autoTable from 'jspdf-autotable';
  * Generates a professional, text-selectable, formal business PDF Report 
  * computationally populated by the dataset stats logic natively.
  *
- * @param {Object} ds - The DataLens activeDataset object containing .stats
+ * @param {Object} ds - The Obsidian Analytics activeDataset object containing .stats
  * @param {string} filename - Output filename
  */
-export async function exportReportToPDF(ds, filename = 'DataLens-Report.pdf') {
+export async function exportReportToPDF(ds, filename = 'Obsidian Analytics-Report.pdf') {
   if (!ds || !ds.stats) throw new Error('Invalid dataset or missing stats data.');
   
   const stats = ds.stats;
@@ -16,13 +16,13 @@ export async function exportReportToPDF(ds, filename = 'DataLens-Report.pdf') {
   const pdf = new jsPDF('p', 'mm', 'a4');
   
   // Theme constants
-  const primaryColor = [148, 170, 255]; // Represents the DataLens brand blueish-violet
+  const primaryColor = [148, 170, 255]; // Represents the Obsidian Analytics brand blueish-violet
   const errorColor = [220, 53, 69];
 
   // ─── PAGE 1: Executive Summary ──────────────────────────────────────────
   pdf.setFontSize(26);
   pdf.setTextColor(20, 20, 24); 
-  pdf.text('DataLens Analytical Report', 14, 24);
+  pdf.text('Obsidian Analytics Analytical Report', 14, 24);
   
   pdf.setFontSize(10);
   pdf.setTextColor(120, 120, 120);

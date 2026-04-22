@@ -1,4 +1,4 @@
-// ─── DataLens Eval 1 — Stats Engine ────────────────────────────────────────────
+// ─── Obsidian Analytics Eval 1 — Stats Engine ────────────────────────────────────────────
 // Pure computation module. Zero React dependencies. Zero side effects.
 // Exports a single function: computeAllStats(headers, rows) => DatasetStats
 
@@ -820,89 +820,119 @@ function computeQualityFlags(rows, headers, columnTypes, numericStats, columnBas
 // ─── Step 13: Auto-generated Insight Cards ─────────────────────────────────────
 
 function generateInsights(ds, stats) {
-  const insights = [];
+  const allPotential = [];
   const { rowCount, headers, qualityFlags, numericStats, primaryCol, timeSeries, categoryAggregations, correlationInsights, anomalies, qualityScore } = stats;
 
-  // 1. Dataset overview
-  insights.push({
-    icon: 'dataset',
-    text: `This dataset has ${rowCount.toLocaleString()} rows and ${headers.length} columns. Data quality score is ${qualityScore}/100.`,
-    category: 'overview',
+  // 1. Dataset overview (Score: 100 - Base info)
+  allPotential.push({
+    score: 100,
+    item: {
+      icon: 'dataset',
+      text: `This dataset has ${rowCount.toLocaleString()} rows and ${headers.length} columns. Quality Score: ${qualityScore}/100.`,
+      category: 'overview',
+    }
   });
 
-  // 2. Primary column stats
+  // 2. Primary column stats (Score: 80)
   if (primaryCol && numericStats[primaryCol]) {
     const s = numericStats[primaryCol];
-    insights.push({
-      icon: 'monitoring',
-      text: `${primaryCol} averages ${s.mean.toLocaleString()} with a range of ${s.min.toLocaleString()} to ${s.max.toLocaleString()}.`,
-      category: 'numeric',
+    allPotential.push({
+      score: 80,
+      item: {
+        icon: 'monitoring',
+        text: `${primaryCol} averages ${s.mean.toLocaleString()} with a range of ${s.min.toLocaleString()} to ${s.max.toLocaleString()}.`,
+        category: 'numeric',
+      }
     });
   }
 
-  // 3. Top correlation
+  // 3. Top correlation (Score: 95 if r > 0.8, else 70)
   if (correlationInsights?.length > 0) {
-    insights.push({
-      icon: 'trending_up',
-      text: correlationInsights[0].text,
-      category: 'correlation',
+    const topCorr = correlationInsights[0];
+    allPotential.push({
+      score: Math.abs(topCorr.r) > 0.8 ? 95 : 70,
+      item: {
+        icon: 'hub',
+        text: topCorr.text,
+        category: 'correlation',
+      }
     });
   }
 
-  // 4. Time series peak
+  // 4. Time series (Score: 90 if strong trend, else 60)
   if (timeSeries?.peak) {
-    insights.push({
-      icon: 'event',
-      text: `${timeSeries.peak.date} was the peak period with ${timeSeries.peak.value.toLocaleString()} in ${timeSeries.primaryCol}.`,
-      category: 'timeseries',
+    const isStrong = timeSeries.trendDirection !== 'Flat';
+    allPotential.push({
+      score: isStrong ? 90 : 60,
+      item: {
+        icon: 'trending_up',
+        text: `${timeSeries.trendDirection}: Peak of ${timeSeries.peak.value.toLocaleString()} reached on ${timeSeries.peak.date}.`,
+        category: 'timeseries',
+      }
     });
   }
 
-  // 5. Category insight
+  // 5. Category insight (Score: 75)
   const catKeys = Object.keys(categoryAggregations);
   if (catKeys.length > 0) {
     const firstCat = categoryAggregations[catKeys[0]];
     if (firstCat?.top5?.[0]) {
-      insights.push({
-        icon: 'category',
-        text: `${firstCat.top5[0].label} accounts for ${firstCat.top5[0].pctOfTotal}% of total ${firstCat.primaryCol}.`,
-        category: 'category',
+      allPotential.push({
+        score: 75,
+        item: {
+          icon: 'category',
+          text: `${firstCat.top5[0].label} dominates ${catKeys[0]}, accounting for ${firstCat.top5[0].pctOfTotal}% of ${firstCat.primaryCol}.`,
+          category: 'category',
+        }
       });
     }
   }
 
-  // 6. Outlier insight
+  // 6. Outlier insight (Score: 85 if > 0)
   const numCols = Object.keys(numericStats);
   const outlierCol = numCols.find(c => numericStats[c].zscoreOutlierCount > 0);
   if (outlierCol) {
     const s = numericStats[outlierCol];
-    insights.push({
-      icon: 'error_outline',
-      text: `${outlierCol} has ${s.zscoreOutlierCount} outliers — values beyond ±3 standard deviations from the mean.`,
-      category: 'outlier',
+    allPotential.push({
+      score: 85,
+      item: {
+        icon: 'error_outline',
+        text: `Detected ${s.zscoreOutlierCount} outliers in ${outlierCol}, indicating significant deviation from normal patterns.`,
+        category: 'outlier',
+      }
     });
   }
 
-  // 7. Duplicate insight
+  // 7. Duplicate insight (Score: 92 if high)
   if (qualityFlags.duplicateRowCount > 0) {
-    insights.push({
-      icon: 'content_copy',
-      text: `${qualityFlags.duplicateRowCount} duplicate rows detected — ${qualityFlags.duplicatePct}% of the dataset.`,
-      category: 'quality',
+    allPotential.push({
+      score: qualityFlags.duplicatePct > 5 ? 92 : 40,
+      item: {
+        icon: 'content_copy',
+        text: `Duplicate check: ${qualityFlags.duplicateRowCount} rows were found to be identical to others (${qualityFlags.duplicatePct}%).`,
+        category: 'quality',
+      }
     });
   }
 
-  // 8. Missing data insight
-  const highNullCol = Object.entries(stats.columnBasics).find(([, b]) => b.nullPct > 20);
+  // 8. Missing data insight (Score: 93 if high)
+  const highNullCol = Object.entries(stats.columnBasics).find(([, b]) => b.nullPct > 10);
   if (highNullCol) {
-    insights.push({
-      icon: 'help_outline',
-      text: `${highNullCol[0]} is missing ${highNullCol[1].nullPct}% of values — consider imputation before analysis.`,
-      category: 'quality',
+    allPotential.push({
+      score: highNullCol[1].nullPct > 25 ? 93 : 50,
+      item: {
+        icon: 'block',
+        text: `${highNullCol[0]} has significant missing data (${highNullCol[1].nullPct}%) which may bias final results.`,
+        category: 'quality',
+      }
     });
   }
 
-  return insights.slice(0, 8);
+  // Sort and return top 6
+  return allPotential
+    .sort((a, b) => b.score - a.score)
+    .map(p => p.item)
+    .slice(0, 6);
 }
 
 // ─── Step 14: Data Quality Score ───────────────────────────────────────────────

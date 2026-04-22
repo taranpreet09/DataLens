@@ -1,6 +1,6 @@
-# 🎨 DataLens Frontend — Architect Alpha
+# 🎨 Obsidian Analytics Frontend — Architect Alpha
 
-This is the React-based frontend for **DataLens**, an advanced analytics platform. It implements a full data science pipeline entirely in the client-side browser using a custom-built statistical computation engine.
+This is the React-based frontend for **Obsidian Analytics**, an advanced analytics platform. It implements a full data science pipeline entirely in the client-side browser using a custom-built statistical computation engine.
 
 ## 🧱 Key Components & Architecture
 
@@ -53,4 +53,4 @@ npm run build
 *   `/public`: Static assets.
 
 ---
-© 2024 Architect Alpha - Project DataLens
+© 2024 Architect Alpha - Project Obsidian Analytics

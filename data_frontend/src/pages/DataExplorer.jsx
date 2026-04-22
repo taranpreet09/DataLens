@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDataset } from '../context/DatasetContext';
+import { useAuth } from '../context/AuthContext';
 import QualityFlagChips from '../components/ui/QualityFlagChips';
 import { detectDirtyColumns } from '../lib/dataCleaner';
 import { generateDataStories } from '../lib/dataStoryteller';
@@ -28,6 +29,7 @@ function renderStoryText(text) {
 
 export default function DataExplorer() {
   const { datasets, activeDataset, deleteDataset, setActive, uploadDataset, cleanDataset, exportDatasetCSV } = useDataset();
+  const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState('columns'); // 'columns' | 'table' | 'outliers' | 'stories'
@@ -58,6 +60,11 @@ export default function DataExplorer() {
   const healthRingColor = healthScore >= 90 ? 'stroke-secondary' : healthScore >= 75 ? 'stroke-primary' : healthScore >= 50 ? 'stroke-amber-400' : 'stroke-error';
 
   const handleFileInput = async (e) => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+
     for (const file of Array.from(e.target.files)) await uploadDataset(file);
   };
 

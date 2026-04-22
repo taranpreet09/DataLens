@@ -14,6 +14,7 @@ import SignupLayout from './pages/auth/SignupLayout'
 import SignupStep1 from './pages/auth/SignupStep1'
 import SignupStep2 from './pages/auth/SignupStep2'
 import SignupStep3 from './pages/auth/SignupStep3'
+import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
   const location = useLocation()
@@ -30,7 +31,7 @@ function App() {
               <Route path="step2" element={<SignupStep2 />} />
               <Route path="step3" element={<SignupStep3 />} />
             </Route>
-            <Route element={<Layout />}>
+            <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
               <Route path="dashboard" element={<LandingPage />} />
               <Route path="data-explorer" element={<DataExplorer />} />
               <Route path="visualizer" element={<Visualizer />} />
