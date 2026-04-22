@@ -40,7 +40,6 @@ export default function DonutChart({ data, size = 160, thickness = 28 }) {
     const value = d.sum || d.count || 0;
     const pct = value / total;
     const sweep = pct * 360;
-    // Leave a 1.5deg gap between segments for clarity
     const gap = data.length > 1 ? 1.5 : 0;
     const startAngle = currentAngle + gap / 2;
     const endAngle = currentAngle + sweep - gap / 2;
@@ -48,6 +47,7 @@ export default function DonutChart({ data, size = 160, thickness = 28 }) {
 
     return {
       ...d,
+      value,
       pct: Math.round(pct * 100),
       color: COLORS[i % COLORS.length],
       path: endAngle > startAngle ? arcPath(cx, cy, r, startAngle, endAngle, thickness) : null,
@@ -57,7 +57,7 @@ export default function DonutChart({ data, size = 160, thickness = 28 }) {
   const topSegment = segments[0];
 
   return (
-    <div className="flex items-center gap-5">
+    <div className="flex items-start gap-4 w-full">
       {/* SVG Donut */}
       <div className="relative shrink-0" style={{ width: size, height: size }}>
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ overflow: 'visible' }}>
@@ -70,16 +70,20 @@ export default function DonutChart({ data, size = 160, thickness = 28 }) {
             stroke="#262626"
             strokeWidth={thickness}
           />
-          {/* Segments */}
+          {/* Segments — each shows a tooltip on hover */}
           {segments.map((seg, i) =>
             seg.path ? (
-              <path
-                key={i}
-                d={seg.path}
-                fill={seg.color}
-                opacity={0.9}
-                className="transition-opacity hover:opacity-100"
-              />
+              <g key={i}>
+                <path
+                  d={seg.path}
+                  fill={seg.color}
+                  opacity={0.9}
+                  className="transition-all hover:opacity-100 cursor-pointer"
+                  style={{ filter: 'drop-shadow(0 0 0px transparent)' }}
+                >
+                  <title>{`${seg.label}: ${seg.pct}% (${seg.value?.toLocaleString()})`}</title>
+                </path>
+              </g>
             ) : null
           )}
         </svg>
@@ -88,25 +92,31 @@ export default function DonutChart({ data, size = 160, thickness = 28 }) {
           <span className="text-lg font-bold font-headline leading-none" style={{ color: topSegment?.color }}>
             {topSegment?.pct}%
           </span>
-          <span className="text-[9px] text-on-surface-variant truncate max-w-[56px] text-center leading-tight mt-0.5">
+          <span
+            className="text-[9px] text-on-surface-variant text-center leading-tight mt-0.5 px-1"
+            style={{ maxWidth: size * 0.5 + 'px', wordBreak: 'break-word' }}
+            title={topSegment?.label}
+          >
             {topSegment?.label}
           </span>
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="space-y-1.5 flex-1 min-w-0 overflow-hidden">
+      {/* Legend — full labels, no truncation */}
+      <div className="flex flex-col gap-1.5 flex-1 min-w-0 overflow-y-auto" style={{ maxHeight: size }}>
         {segments.map((seg, i) => (
-          <div key={i} className="flex items-center gap-2 text-xs">
+          <div key={i} className="flex items-center gap-2 text-xs group cursor-default" title={`${seg.label}: ${seg.value?.toLocaleString()} (${seg.pct}%)` }>
             <span
-              className="w-2.5 h-2.5 rounded-sm shrink-0 flex-none"
+              className="w-2.5 h-2.5 rounded-sm shrink-0 flex-none transition-transform group-hover:scale-125"
               style={{ background: seg.color }}
             />
-            <span className="truncate text-on-surface font-medium flex-1">{seg.label}</span>
-            <span className="text-on-surface-variant shrink-0 tabular-nums">{seg.pct}%</span>
+            <span className="text-on-surface font-medium flex-1 min-w-0 group-hover:text-white transition-colors" style={{ wordBreak: 'break-word' }}>
+              {seg.label}
+            </span>
+            <span className="text-on-surface-variant shrink-0 tabular-nums group-hover:text-white transition-colors">{seg.pct}%</span>
           </div>
         ))}
       </div>
     </div>
   );
-}
+}

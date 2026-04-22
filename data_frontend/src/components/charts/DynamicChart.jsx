@@ -13,18 +13,51 @@ const COLORS = [
   '#ff94d4', '#e2ff94', '#94ffd4', '#d494ff', '#ff9494', '#94fff5'
 ];
 
-const CustomTooltip = ({ active, payload, label, graphType }) => {
+const CustomTooltip = ({ active, payload, label, graphType, xAxisKey, yAxisKey }) => {
   if (active && payload && payload.length) {
-    const data = payload[0].payload;
+    const entry = payload[0].payload;
     const value = payload[0].value;
-    const name = payload[0].name || label || data.label || data.range || data.value;
-    
+
+    // Resolve the display label (category or range for histograms)
+    const displayLabel = entry.label ?? entry.range ?? entry[xAxisKey] ?? label ?? '—';
+
+    // Resolve the metric name (the column being measured)
+    const metricName = payload[0].name || yAxisKey || 'Value';
+
+    // For pie/donut: compute percentage of total
+    const total = payload[0]?.payload?.__total__;
+    const pct = total && value ? ((value / total) * 100).toFixed(1) : null;
+
+    // Format the value nicely
+    const formattedValue = typeof value === 'number'
+      ? value.toLocaleString(undefined, { maximumFractionDigits: 2 })
+      : value;
+
     return (
-      <div className="bg-[#1a1a1a] border border-[#c799ff44] p-3 rounded-lg shadow-2xl min-w-[120px] z-50">
-        <p className="text-[#adaaaa] text-[10px] font-bold mb-1 truncate max-w-[200px]">{name}</p>
-        <p className="text-on-surface text-xs font-bold font-inter">
-          Value: <span className="text-[#c799ff] ml-1">{value?.toLocaleString()}</span>
-        </p>
+      <div className="bg-[#18181b] border border-[#c799ff33] rounded-xl shadow-2xl overflow-hidden z-50 min-w-[160px] max-w-[240px]">
+        {/* Header: the category/x-axis label */}
+        <div className="px-3 py-2 bg-[#c799ff15] border-b border-[#c799ff22]">
+          <p className="text-[10px] font-semibold text-[#c799ff] tracking-wide uppercase truncate">
+            {graphType === 'histogram' ? 'Range' : (xAxisKey || 'Category')}
+          </p>
+          <p className="text-xs font-bold text-white mt-0.5 truncate" title={String(displayLabel)}>
+            {String(displayLabel)}
+          </p>
+        </div>
+
+        {/* Body: metric + value */}
+        <div className="px-3 py-2 space-y-1">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[10px] text-[#888] truncate max-w-[100px]">{metricName}</span>
+            <span className="text-xs font-bold text-[#94aaff] tabular-nums">{formattedValue}</span>
+          </div>
+          {pct && (
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[10px] text-[#888]">Share</span>
+              <span className="text-xs font-bold text-[#5cfd80] tabular-nums">{pct}%</span>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -43,6 +76,7 @@ const CustomLegend = ({ payload }) => {
     </div>
   );
 };
+
 
 export default function DynamicChart({ data, graphType = 'bar', xAxisKey = 'label', yAxisKey = 'sum' }) {
   if (!data || !data.length) return <EmptyChartState label="No data to visualize" />;
@@ -84,7 +118,7 @@ export default function DynamicChart({ data, graphType = 'bar', xAxisKey = 'labe
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} className="hover:opacity-80 transition-opacity cursor-pointer" />
               ))}
             </Pie>
-            <Tooltip content={<CustomTooltip graphType="pie" />} />
+            <Tooltip content={<CustomTooltip graphType="pie" xAxisKey={xAxisKey} yAxisKey={yAxisKey} />} />
             <Legend content={<CustomLegend />} layout="vertical" verticalAlign="middle" align="right" wrapperStyle={{ pointerEvents: 'auto' }} />
           </PieChart>
         );
@@ -102,7 +136,7 @@ export default function DynamicChart({ data, graphType = 'bar', xAxisKey = 'labe
             <CartesianGrid strokeDasharray="3 3" stroke="#ffffff" strokeOpacity={0.05} vertical={false} />
             <XAxis dataKey={xAxisKey} axisLine={false} tickLine={false} tick={{ fill: '#767575', fontSize: 10, fontFamily: 'Inter' }} dy={10} tickFormatter={(val) => String(val).split(' – ')[0]} />
             <YAxis axisLine={false} tickLine={false} tick={{ fill: '#767575', fontSize: 10, fontFamily: 'Inter' }} tickFormatter={(value) => new Intl.NumberFormat('en-US', { notation: "compact", compactDisplay: "short" }).format(value)} />
-            <Tooltip content={<CustomTooltip graphType="area" />} cursor={{ stroke: '#94aaff', strokeWidth: 1, strokeDasharray: '4 4' }} />
+            <Tooltip content={<CustomTooltip graphType="area" xAxisKey={xAxisKey} yAxisKey={yAxisKey} />} cursor={{ stroke: '#94aaff', strokeWidth: 1, strokeDasharray: '4 4' }} />
             <Area type="monotone" dataKey={yAxisKey} stroke="#94aaff" strokeWidth={3} fillOpacity={1} fill="url(#colorArea)" />
           </AreaChart>
         );
@@ -115,7 +149,7 @@ export default function DynamicChart({ data, graphType = 'bar', xAxisKey = 'labe
             <XAxis dataKey={xAxisKey} type="category" axisLine={false} tickLine={false} tick={{ fill: '#767575', fontSize: 10, fontFamily: 'Inter' }} dy={10} tickFormatter={(val) => String(val).split(' – ')[0]} />
             <YAxis dataKey={yAxisKey} type="number" axisLine={false} tickLine={false} tick={{ fill: '#767575', fontSize: 10, fontFamily: 'Inter' }} tickFormatter={(value) => new Intl.NumberFormat('en-US', { notation: "compact", compactDisplay: "short" }).format(value)} />
             <ZAxis range={[50, 400]} />
-            <Tooltip content={<CustomTooltip graphType="scatter" />} cursor={{ strokeDasharray: '3 3' }} />
+            <Tooltip content={<CustomTooltip graphType="scatter" xAxisKey={xAxisKey} yAxisKey={yAxisKey} />} cursor={{ strokeDasharray: '3 3' }} />
             <Scatter name="Data" data={data} fill="#ffcc94">
               {data.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -144,7 +178,7 @@ export default function DynamicChart({ data, graphType = 'bar', xAxisKey = 'labe
               tick={{ fill: '#767575', fontSize: 10, fontFamily: 'Inter' }} 
               tickFormatter={(value) => new Intl.NumberFormat('en-US', { notation: "compact", compactDisplay: "short" }).format(value)}
             />
-            <Tooltip content={<CustomTooltip graphType="bar" />} cursor={{ fill: `#c799ff11` }} />
+            <Tooltip content={<CustomTooltip graphType={graphType} xAxisKey={xAxisKey} yAxisKey={yAxisKey} />} cursor={{ fill: `#c799ff11` }} />
             <Bar 
               dataKey={yAxisKey} 
               radius={[4, 4, 0, 0]}

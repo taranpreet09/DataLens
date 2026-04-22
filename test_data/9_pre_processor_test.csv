@@ -1,0 +1,21 @@
+Ship_ID,Origin,Destination,Weight_kg,Ship_Date,Cost_USD,Carrier
+S101,New York,London,1,500,2023/05/12,4,500,GlobalEx
+S102,Mumbai,Dubai,800,15-06-2023,1200,AirFast
+S103,Singapore,Tokyo,2,200,2023-03-01,,ExpressLog
+S104,Berlin,Paris,500,March 10 2023,800,LocalPost
+S105,Shanghai,Los Angeles,4,500,2023-07-20,12,000,SeaFreight
+S106,London,New York,1,200,2023-01-15,3,500,GlobalEx
+S107,Sydney,Tokyo,950,22/09/2023,2800,AirFast
+S108,Dubai,Mumbai,3,200,10-10-2023,N/A,AirFast
+S109,Tokyo,Singapore,1,800,2023-11-05,5,200,ExpressLog
+S110,Paris,Berlin,450,April 5 2023,750,LocalPost
+S111,Los Angeles,Shanghai,5,000,2023/12/01,15,000,SeaFreight
+S112,London,Berlin,600,05-02-2023,900,LocalPost
+S113,Mumbai,Singapore,1,200,20-03-2023,2,500,AirFast
+S114,Tokyo,London,2,500,2023-08-14,6,000,GlobalEx
+S115,Dubai,Shanghai,4,000,2023-10-15,11,000,SeaFreight
+S116,Singapore,Dubai,2,100,2023-09-25,3,200,AirFast
+S117,New York,Tokyo,1,900,12-12-2023,5,500,GlobalEx
+S118,Shanghai,Mumbai,3,500,2023/11/20,9,500,SeaFreight
+S119,Berlin,London,550,25-04-2023,850,LocalPost
+S120,Paris,Tokyo,700,June 15 2023,2,200,ExpressLog
