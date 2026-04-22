@@ -57,7 +57,7 @@ export default function DonutChart({ data, size = 160, thickness = 28 }) {
   const topSegment = segments[0];
 
   return (
-    <div className="flex items-start gap-4 w-full">
+    <div className="flex flex-col items-center gap-5 w-full">
       {/* SVG Donut */}
       <div className="relative shrink-0" style={{ width: size, height: size }}>
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ overflow: 'visible' }}>
@@ -102,8 +102,8 @@ export default function DonutChart({ data, size = 160, thickness = 28 }) {
         </div>
       </div>
 
-      {/* Legend — truncate with title tooltip for full label on hover */}
-      <div className="flex flex-col gap-1.5 flex-1 min-w-0 overflow-y-auto" style={{ maxHeight: size }}>
+      {/* Legend — full width below chart */}
+      <div className="flex flex-col gap-1.5 w-full px-2">
         {segments.map((seg, i) => (
           <div
             key={i}
@@ -114,7 +114,7 @@ export default function DonutChart({ data, size = 160, thickness = 28 }) {
               className="w-2.5 h-2.5 rounded-sm shrink-0 flex-none transition-transform group-hover:scale-125"
               style={{ background: seg.color }}
             />
-            <span className="truncate text-on-surface font-medium flex-1 group-hover:text-white transition-colors">
+            <span className="truncate text-on-surface font-medium flex-1 min-w-0 group-hover:text-white transition-colors">
               {seg.label}
             </span>
             <span className="text-on-surface-variant shrink-0 tabular-nums group-hover:text-white transition-colors">
