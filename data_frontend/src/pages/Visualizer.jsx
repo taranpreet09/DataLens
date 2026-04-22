@@ -5,17 +5,36 @@ import DynamicTimeSeries from '../components/charts/DynamicTimeSeries';
 import DynamicBarChart from '../components/charts/DynamicBarChart';
 import DonutChart from '../components/charts/DonutChart';
 import EmptyChartState from '../components/charts/EmptyChartState';
+import DynamicChart from '../components/charts/DynamicChart'; // I will keep the import just in case
 
 export default function Visualizer() {
   const { activeDataset, datasets, setActive } = useDataset();
   const ds = activeDataset;
   const stats = ds?.stats;
 
-  // Histogram column selector
-  const histKeys = stats?.histogramBuckets ? Object.keys(stats.histogramBuckets) : [];
+  // Filter out ignored columns
+  const filterIgnoredCols = (keys) => keys.filter(k => !/^(s\.?no\.?|id|serial\s*no|uuid)$/i.test(k));
+
+  // Combine both numeric and categorical columns for the Continuous Distribution/Universal section
+  const pureHistKeys = stats?.histogramBuckets ? Object.keys(stats.histogramBuckets) : [];
+  const pureCatKeys = stats?.categoricalStats ? Object.keys(stats.categoricalStats) : [];
+  const comboKeys = filterIgnoredCols([...new Set([...pureHistKeys, ...pureCatKeys])]);
+
   const [selectedHistCol, setSelectedHistCol] = useState(null);
-  useEffect(() => { if (histKeys.length) setSelectedHistCol(histKeys[0]); }, [ds?.id]);
-  const histData = selectedHistCol && stats?.histogramBuckets?.[selectedHistCol];
+  const [histGraphType, setHistGraphType] = useState('pie'); // Default to pie as user specifically requested to see it
+  useEffect(() => { if (comboKeys.length) setSelectedHistCol(comboKeys[0]); }, [ds?.id]);
+  
+  let histData = null;
+  let comboChartData = [];
+  if (selectedHistCol) {
+    if (stats?.histogramBuckets?.[selectedHistCol]) {
+      histData = stats.histogramBuckets[selectedHistCol];
+      comboChartData = histData.bins.map(b => ({ range: b.range, count: b.count }));
+    } else if (stats?.categoricalStats?.[selectedHistCol]) {
+      histData = stats.categoricalStats[selectedHistCol];
+      comboChartData = histData.top10.map(c => ({ range: c.value, count: c.count }));
+    }
+  }
 
   // Category column selector
   const catAggKeys = stats?.categoryAggregations ? Object.keys(stats.categoryAggregations) : [];
@@ -70,8 +89,9 @@ export default function Visualizer() {
             {kpis.map((kpi, i) => <KPICard key={i} {...kpi} />)}
           </section>
 
-          {/* ── Section 6: Time Series ── */}
+          {/* ── First Row: Continuous Distribution & Category Analysis ── */}
           <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+            {/* ── Section 6: Time Series / Continuous (Left & Col-Span-2) ── */}
             <div className="lg:col-span-2 bg-surface-container p-5 sm:p-8 rounded-2xl flex flex-col min-h-[320px] lg:min-h-[420px] shadow-sm border border-outline-variant/5">
               <div className="flex justify-between items-center mb-6">
                 <div>
@@ -84,14 +104,26 @@ export default function Visualizer() {
                       : 'Upload a dataset with a date column to see temporal trends.'}
                   </p>
                 </div>
-                {histKeys.length > 0 && !stats.timeSeries && (
-                  <select value={selectedHistCol ?? ''} onChange={e => setSelectedHistCol(e.target.value)}
-                    className="bg-surface-container-lowest border border-outline-variant/20 text-xs rounded-lg px-4 py-2.5 text-on-surface font-medium focus:ring-2 focus:ring-primary cursor-pointer">
-                    {histKeys.map(k => <option key={k} value={k}>{k}</option>)}
-                  </select>
-                )}
+                <div className="flex gap-2">
+                  {comboKeys.length > 0 && !stats.timeSeries && (
+                    <select value={selectedHistCol ?? ''} onChange={e => setSelectedHistCol(e.target.value)}
+                      className="bg-surface-container-lowest border border-outline-variant/20 text-xs rounded-lg px-4 py-2.5 text-on-surface font-medium focus:ring-2 focus:ring-primary cursor-pointer truncate">
+                      {comboKeys.map(k => <option key={k} value={k}>{k}</option>)}
+                    </select>
+                  )}
+                  {!stats.timeSeries && histData && (
+                    <select value={histGraphType} onChange={e => setHistGraphType(e.target.value)}
+                      className="bg-surface-container-lowest border border-outline-variant/20 text-xs rounded-lg px-4 py-2.5 text-primary font-bold focus:ring-2 focus:ring-primary cursor-pointer">
+                      <option value="bar">Bar Chart</option>
+                      <option value="pie">Pie Chart</option>
+                      <option value="area">Area Graph</option>
+                      <option value="scatter">Dotted Graph</option>
+                      <option value="histogram">Histogram</option>
+                    </select>
+                  )}
+                </div>
               </div>
-              <div className="flex-grow relative h-full">
+              <div className="flex-grow relative h-full min-h-[200px]">
                 {stats.timeSeries ? (
                   <DynamicTimeSeries
                     data={stats.timeSeries.series}
@@ -102,8 +134,8 @@ export default function Visualizer() {
                   />
                 ) : histData ? (
                   <>
-                    <DynamicBarChart data={histData.bins} xAxisKey="range" barKey="count" color="#94aaff" />
-                    {histData.skewDirection !== 'symmetric' && (
+                    <DynamicChart data={comboChartData} graphType={histGraphType} xAxisKey="range" yAxisKey="count" />
+                    {histData.skewDirection && histData.skewDirection !== 'symmetric' && (
                       <p className="text-[10px] text-amber-400 mt-2 flex items-center gap-1">
                         <span className="material-symbols-outlined text-xs">info</span>
                         Distribution is {histData.skewDirection} (skewness: {histData.skewValue})
@@ -119,13 +151,13 @@ export default function Visualizer() {
                 <div className="mt-4 grid grid-cols-3 gap-4 text-xs">
                   <div className="bg-surface-container-low rounded-lg p-3">
                     <p className="text-on-surface-variant text-[10px] uppercase tracking-widest font-bold mb-1">Peak</p>
-                    <p className="font-bold text-primary">{stats.timeSeries.peak.value.toLocaleString()}</p>
-                    <p className="text-on-surface-variant">{stats.timeSeries.peak.date}</p>
+                    <p className="font-bold text-primary truncate">{stats.timeSeries.peak.value.toLocaleString()}</p>
+                    <p className="text-on-surface-variant text-[10px] truncate">{stats.timeSeries.peak.date}</p>
                   </div>
                   <div className="bg-surface-container-low rounded-lg p-3">
                     <p className="text-on-surface-variant text-[10px] uppercase tracking-widest font-bold mb-1">Trough</p>
-                    <p className="font-bold text-error">{stats.timeSeries.trough.value.toLocaleString()}</p>
-                    <p className="text-on-surface-variant">{stats.timeSeries.trough.date}</p>
+                    <p className="font-bold text-error truncate">{stats.timeSeries.trough.value.toLocaleString()}</p>
+                    <p className="text-on-surface-variant text-[10px] truncate">{stats.timeSeries.trough.date}</p>
                   </div>
                   <div className="bg-surface-container-low rounded-lg p-3">
                     <p className="text-on-surface-variant text-[10px] uppercase tracking-widest font-bold mb-1">Peak / Trough</p>
@@ -136,7 +168,7 @@ export default function Visualizer() {
               )}
             </div>
 
-            {/* ── Section 7: Category Analysis ── */}
+            {/* ── Section 7: Category Analysis (Right & Col-Span-1) ── */}
             <div className="bg-surface-container p-5 sm:p-8 rounded-2xl flex flex-col relative overflow-hidden shadow-sm border border-outline-variant/5">
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-2.5 bg-tertiary/10 rounded-xl">
