@@ -102,21 +102,27 @@ export default function DonutChart({ data, size = 160, thickness = 28 }) {
         </div>
       </div>
 
-      {/* Legend — full labels, no truncation */}
+      {/* Legend — truncate with title tooltip for full label on hover */}
       <div className="flex flex-col gap-1.5 flex-1 min-w-0 overflow-y-auto" style={{ maxHeight: size }}>
         {segments.map((seg, i) => (
-          <div key={i} className="flex items-center gap-2 text-xs group cursor-default" title={`${seg.label}: ${seg.value?.toLocaleString()} (${seg.pct}%)` }>
+          <div
+            key={i}
+            className="flex items-center gap-2 text-xs group cursor-default"
+            title={`${seg.label}: ${seg.value?.toLocaleString()} (${seg.pct}%)`}
+          >
             <span
               className="w-2.5 h-2.5 rounded-sm shrink-0 flex-none transition-transform group-hover:scale-125"
               style={{ background: seg.color }}
             />
-            <span className="text-on-surface font-medium flex-1 min-w-0 group-hover:text-white transition-colors" style={{ wordBreak: 'break-word' }}>
+            <span className="truncate text-on-surface font-medium flex-1 group-hover:text-white transition-colors">
               {seg.label}
             </span>
-            <span className="text-on-surface-variant shrink-0 tabular-nums group-hover:text-white transition-colors">{seg.pct}%</span>
+            <span className="text-on-surface-variant shrink-0 tabular-nums group-hover:text-white transition-colors">
+              {seg.pct}%
+            </span>
           </div>
         ))}
       </div>
     </div>
   );
-}
+}
