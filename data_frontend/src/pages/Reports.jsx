@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useDataset } from '../context/DatasetContext';
 import { exportReportToPDF } from '../lib/pdfExport';
 import CorrelationHeatmap from '../components/charts/CorrelationHeatmap';
-import InsightCard from '../components/ui/InsightCard';
 import QualityBadge from '../components/ui/QualityBadge';
 import QualityFlagChips from '../components/ui/QualityFlagChips';
 import DynamicTimeSeries from '../components/charts/DynamicTimeSeries';
@@ -54,8 +53,8 @@ export default function Reports() {
         <div className="flex items-center gap-4">
           {stats && <QualityBadge score={stats.qualityScore} />}
           {ds && (
-            <button 
-              onClick={handleExport} 
+            <button
+              onClick={handleExport}
               disabled={isExporting}
               className="print:hidden bg-primary hover:bg-primary-fixed-dim text-on-primary-container font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-transform active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-wait">
               <span className="material-symbols-outlined text-sm">
@@ -237,20 +236,7 @@ export default function Reports() {
             </div>
           )}
 
-          {/* ── Section 9: Auto-Generated Insights ── */}
-          <div className="col-span-12 lg:col-span-6 bg-surface-container-high rounded-2xl border border-outline-variant/10 p-5 sm:p-8 min-w-0">
-            <div className="flex items-center gap-2 text-tertiary mb-6">
-              <span className="material-symbols-outlined text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
-              <span className="text-sm font-bold uppercase tracking-widest">Auto-Generated Insights</span>
-            </div>
-            {stats.insights?.length > 0 ? (
-              <div className="space-y-3">
-                {stats.insights.map((ins, i) => <InsightCard key={i} insight={ins} />)}
-              </div>
-            ) : (
-              <p className="text-on-surface-variant text-sm">Not enough data for insight generation.</p>
-            )}
-          </div>
+
 
           {/* ── Quality Summary Panel ── */}
           <div className="col-span-12 lg:col-span-6 space-y-6 min-w-0">
@@ -269,7 +255,7 @@ export default function Reports() {
       )}
 
       <footer className="print:hidden mt-16 py-8 border-t border-outline-variant/5 flex justify-between items-center text-[10px] text-on-surface-variant uppercase tracking-[0.2em]">
-        <div>© 2024 DataLens Analytics Engine</div>
+        <div>© 2025 DataLens Analytics Engine</div>
         <div className="flex gap-6">
           <a className="hover:text-primary transition-colors cursor-pointer">Documentation</a>
           <a className="hover:text-primary transition-colors cursor-pointer">System Status</a>

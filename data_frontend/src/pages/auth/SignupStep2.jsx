@@ -1,6 +1,24 @@
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useSignup } from '../../context/SignupContext';
 
 export default function SignupStep2() {
+  const { formData, updateFields } = useSignup();
+  const navigate = useNavigate();
+  const [error, setError] = useState('');
+
+  const handleContinue = (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (!formData.fullName || formData.fullName.trim().length === 0) {
+      setError('Full Name is required.');
+      return;
+    }
+
+    navigate('/signup/step3');
+  };
+
   return (
     <div className="w-full flex flex-col items-center justify-start px-6 py-2">
       <div className="w-full max-w-xl space-y-6">
@@ -13,7 +31,14 @@ export default function SignupStep2() {
           </p>
         </div>
 
-        <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
+        {error && (
+          <div className="px-4 py-3 rounded-xl bg-error/10 border border-error/20 text-error text-xs font-medium flex items-center gap-2">
+            <span className="material-symbols-outlined text-sm shrink-0">error</span>
+            {error}
+          </div>
+        )}
+
+        <form className="space-y-5" onSubmit={handleContinue}>
           <div className="space-y-1.5">
             <label className="block text-sm font-label font-medium text-on-surface-variant tracking-wide" htmlFor="full_name">
               Full Name
@@ -29,6 +54,8 @@ export default function SignupStep2() {
                 placeholder="e.g. Alexander Vance" 
                 required 
                 type="text" 
+                value={formData.fullName}
+                onChange={(e) => updateFields({ fullName: e.target.value })}
               />
             </div>
           </div>
@@ -48,6 +75,8 @@ export default function SignupStep2() {
                   name="role" 
                   placeholder="Lead Architect" 
                   type="text" 
+                  value={formData.role}
+                  onChange={(e) => updateFields({ role: e.target.value })}
                 />
               </div>
             </div>
@@ -66,6 +95,8 @@ export default function SignupStep2() {
                   name="organization" 
                   placeholder="Quantum Labs" 
                   type="text" 
+                  value={formData.organization}
+                  onChange={(e) => updateFields({ organization: e.target.value })}
                 />
               </div>
             </div>
@@ -76,10 +107,10 @@ export default function SignupStep2() {
               <span className="material-symbols-outlined text-[18px] transition-transform group-hover:-translate-x-1">arrow_back</span>
               Back
             </Link>
-            <Link className="w-full md:w-auto primary-gradient text-on-primary-fixed px-10 py-3.5 rounded-lg font-headline font-bold text-lg hover:shadow-[0_0_20px_rgba(148,170,255,0.3)] active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-2" to="/signup/step3">
+            <button type="submit" className="w-full md:w-auto primary-gradient text-on-primary-fixed px-10 py-3.5 rounded-lg font-headline font-bold text-lg hover:shadow-[0_0_20px_rgba(148,170,255,0.3)] active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-2">
               Continue
               <span className="material-symbols-outlined">chevron_right</span>
-            </Link>
+            </button>
           </div>
         </form>
       </div>

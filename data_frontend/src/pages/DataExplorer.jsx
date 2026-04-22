@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDataset } from '../context/DatasetContext';
 import QualityFlagChips from '../components/ui/QualityFlagChips';
+import { detectDirtyColumns } from '../lib/dataCleaner';
+import { generateDataStories } from '../lib/dataStoryteller';
 
 function formatBytes(bytes) {
   if (!bytes) return '—';
@@ -19,19 +21,60 @@ const typeColors = {
   id: 'bg-amber-400/10 text-amber-400',
 };
 
+// ── Simple markdown-ish bold renderer ──
+function renderStoryText(text) {
+  return text.replace(/\*\*(.*?)\*\*/g, '<strong class="text-on-surface">$1</strong>');
+}
+
 export default function DataExplorer() {
-  const { datasets, activeDataset, deleteDataset, setActive, uploadDataset } = useDataset();
+  const { datasets, activeDataset, deleteDataset, setActive, uploadDataset, cleanDataset, exportDatasetCSV } = useDataset();
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
-  const [viewMode, setViewMode] = useState('columns'); // 'columns' | 'table' | 'outliers'
+  const [viewMode, setViewMode] = useState('columns'); // 'columns' | 'table' | 'outliers' | 'stories'
+  const [cleanReport, setCleanReport] = useState(null);
+  const [cleaning, setCleaning] = useState(false);
 
   const ds = activeDataset;
   const stats = ds?.stats;
   const totalPages = ds ? Math.ceil(ds.rows.length / PAGE_SIZE) : 0;
   const pageRows = ds ? ds.rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) : [];
 
+  // Detect dirty columns for the "Standardize" preview
+  const dirtyColumns = useMemo(() => {
+    if (!ds || !stats) return [];
+    return detectDirtyColumns(ds.headers, ds.rows, stats.columnTypes);
+  }, [ds?.id, ds?.cleaned]);
+
+  // Generate data stories
+  const stories = useMemo(() => {
+    if (!stats) return [];
+    return generateDataStories(stats);
+  }, [stats]);
+
+  // Health score color
+  const healthScore = stats?.qualityScore ?? 0;
+  const healthColor = healthScore >= 90 ? 'text-secondary' : healthScore >= 75 ? 'text-primary' : healthScore >= 50 ? 'text-amber-400' : 'text-error';
+  const healthBg = healthScore >= 90 ? 'bg-secondary/10' : healthScore >= 75 ? 'bg-primary/10' : healthScore >= 50 ? 'bg-amber-400/10' : 'bg-error/10';
+  const healthRingColor = healthScore >= 90 ? 'stroke-secondary' : healthScore >= 75 ? 'stroke-primary' : healthScore >= 50 ? 'stroke-amber-400' : 'stroke-error';
+
   const handleFileInput = async (e) => {
     for (const file of Array.from(e.target.files)) await uploadDataset(file);
+  };
+
+  const handleClean = () => {
+    if (!ds) return;
+    setCleaning(true);
+    // Use setTimeout to let the UI update before heavy computation
+    setTimeout(() => {
+      const report = cleanDataset(ds.id);
+      setCleanReport(report);
+      setCleaning(false);
+    }, 50);
+  };
+
+  const handleExportCSV = () => {
+    if (!ds) return;
+    exportDatasetCSV(ds.id);
   };
 
   return (
@@ -51,6 +94,7 @@ export default function DataExplorer() {
                 { key: 'columns', label: 'Columns' },
                 { key: 'outliers', label: 'Outliers' },
                 { key: 'table', label: 'Data' },
+                { key: 'stories', label: 'Stories' },
               ].map(tab => (
                 <button key={tab.key} onClick={() => { setViewMode(tab.key); setPage(1); }}
                   className={`px-3 py-1.5 text-xs font-semibold rounded transition-all cursor-pointer ${viewMode === tab.key ? 'bg-surface-container-highest text-primary' : 'text-on-surface-variant hover:text-white'}`}
@@ -87,7 +131,128 @@ export default function DataExplorer() {
         </div>
       )}
 
-      {/* ── Section 2: Per-Column Stats ── */}
+      {/* ── Health Score + Action Bar ── */}
+      {ds && stats && (
+        <div className="mb-8 grid grid-cols-1 lg:grid-cols-12 gap-4">
+          {/* Health Score Card */}
+          <div className={`lg:col-span-3 ${healthBg} rounded-2xl border border-outline-variant/10 p-6 flex items-center gap-5`}>
+            <div className="relative w-20 h-20 shrink-0">
+              <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
+                <circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" strokeWidth="6" className="text-surface-container-highest" />
+                <circle cx="40" cy="40" r="34" fill="none" strokeWidth="6" strokeLinecap="round"
+                  className={healthRingColor}
+                  strokeDasharray={`${(healthScore / 100) * 213.6} 213.6`}
+                  style={{ transition: 'stroke-dasharray 0.6s ease' }}
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className={`font-headline font-extrabold text-xl ${healthColor}`}>{healthScore}</span>
+              </div>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-1">Data Health</p>
+              <p className={`font-headline font-bold text-lg ${healthColor}`}>
+                {healthScore >= 90 ? 'Excellent' : healthScore >= 75 ? 'Good' : healthScore >= 50 ? 'Fair' : 'Poor'}
+              </p>
+              <p className="text-[10px] text-on-surface-variant mt-0.5">
+                {stats.qualityFlags.totalNullCount} nulls · {stats.qualityFlags.duplicateRowCount} dupes
+              </p>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="lg:col-span-9 flex flex-wrap gap-3 items-start">
+            {/* Standardize Data button */}
+            <button
+              onClick={handleClean}
+              disabled={cleaning || ds.cleaned}
+              className={`group flex items-center gap-2.5 px-5 py-3 rounded-xl text-sm font-semibold transition-all active:scale-95 cursor-pointer
+                ${ds.cleaned
+                  ? 'bg-secondary/10 text-secondary border border-secondary/20'
+                  : 'bg-amber-400/10 text-amber-400 border border-amber-400/20 hover:bg-amber-400/20'
+                } disabled:cursor-not-allowed`}
+            >
+              <span className="material-symbols-outlined text-lg">
+                {ds.cleaned ? 'check_circle' : cleaning ? 'hourglass_top' : 'auto_fix_high'}
+              </span>
+              {ds.cleaned ? 'Data Standardized' : cleaning ? 'Cleaning...' : `Standardize Data${dirtyColumns.length > 0 ? ` (${dirtyColumns.length} issues)` : ''}`}
+            </button>
+
+            {/* Export CSV */}
+            <button
+              onClick={handleExportCSV}
+              className="group flex items-center gap-2.5 px-5 py-3 rounded-xl text-sm font-semibold bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-all active:scale-95 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-lg">download</span>
+              Export CSV
+            </button>
+
+            {/* View Reports */}
+            <button
+              onClick={() => { setActive(ds.id); navigate('/reports'); }}
+              className="group flex items-center gap-2.5 px-5 py-3 rounded-xl text-sm font-semibold bg-tertiary/10 text-tertiary border border-tertiary/20 hover:bg-tertiary/20 transition-all active:scale-95 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-lg">bar_chart</span>
+              View Reports
+            </button>
+
+            {/* Delete */}
+            <button
+              onClick={() => deleteDataset(ds.id)}
+              className="group flex items-center gap-2.5 px-5 py-3 rounded-xl text-sm font-semibold bg-error/5 text-error/80 border border-error/10 hover:bg-error/10 hover:text-error transition-all active:scale-95 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-lg">delete</span>
+              Delete
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Clean report toast */}
+      {cleanReport && (
+        <div className="mb-6 bg-surface-container-high rounded-xl border border-outline-variant/10 p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="material-symbols-outlined text-secondary text-lg">auto_fix_high</span>
+            <h3 className="font-headline font-bold text-sm">Cleaning Report</h3>
+            <button onClick={() => setCleanReport(null)} className="ml-auto text-on-surface-variant hover:text-on-surface">
+              <span className="material-symbols-outlined text-sm">close</span>
+            </button>
+          </div>
+          {cleanReport.totalChanges === 0 ? (
+            <p className="text-sm text-secondary flex items-center gap-2">
+              <span className="material-symbols-outlined text-sm">check_circle</span>
+              Your data is already clean! No changes needed.
+            </p>
+          ) : (
+            <div className="space-y-2 text-sm text-on-surface-variant">
+              <p><strong className="text-on-surface">{cleanReport.totalChanges.toLocaleString()}</strong> total cells modified</p>
+              <div className="flex flex-wrap gap-4">
+                {cleanReport.nullsStandardized > 0 && (
+                  <span className="flex items-center gap-1.5 text-xs"><span className="w-2 h-2 rounded-full bg-amber-400"></span> {cleanReport.nullsStandardized} N/A → null</span>
+                )}
+                {cleanReport.numericsCleaned > 0 && (
+                  <span className="flex items-center gap-1.5 text-xs"><span className="w-2 h-2 rounded-full bg-primary"></span> {cleanReport.numericsCleaned} numbers cleaned</span>
+                )}
+                {cleanReport.datesCleaned > 0 && (
+                  <span className="flex items-center gap-1.5 text-xs"><span className="w-2 h-2 rounded-full bg-secondary"></span> {cleanReport.datesCleaned} dates standardized</span>
+                )}
+              </div>
+              {Object.entries(cleanReport.columnReports).slice(0, 5).map(([col, r]) => (
+                <div key={col} className="text-xs bg-surface-container rounded-lg px-3 py-2">
+                  <span className="font-semibold text-on-surface">{col}</span>: {r.changed} changes
+                  {r.samples.length > 0 && (
+                    <span className="text-on-surface-variant/60 ml-2">
+                      e.g. "{r.samples[0].from}" → "{r.samples[0].to}"
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Section: Per-Column Stats ── */}
       {ds && viewMode === 'columns' && (
         <div className="space-y-6">
           <div className="bg-surface-container-low rounded-xl overflow-auto border border-outline-variant/10">
@@ -142,7 +307,6 @@ export default function DataExplorer() {
             </table>
           </div>
 
-          {/* Quality flags below table */}
           {stats?.qualityFlags?.flags?.length > 0 && (
             <div className="space-y-3">
               <h3 className="text-sm font-bold">Quality Flags</h3>
@@ -152,10 +316,9 @@ export default function DataExplorer() {
         </div>
       )}
 
-      {/* ── Section 4: Outlier & Anomaly Detection ── */}
+      {/* ── Section: Outlier & Anomaly Detection ── */}
       {ds && viewMode === 'outliers' && (
         <div className="space-y-8">
-          {/* Z-score vs IQR comparison table */}
           <div className="bg-surface-container-low rounded-xl overflow-auto border border-outline-variant/10">
             <div className="px-6 py-5 border-b border-outline-variant/10">
               <h3 className="text-lg font-bold font-headline">Outlier Detection — Z-Score vs IQR</h3>
@@ -203,7 +366,6 @@ export default function DataExplorer() {
             </table>
           </div>
 
-          {/* Anomaly patterns */}
           {stats?.anomalies && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               <AnomalyCard title="Constant Columns" icon="block" items={stats.anomalies.constantColumns} description="Zero variance — useless for analysis" color="error" />
@@ -222,10 +384,6 @@ export default function DataExplorer() {
               <h2 className="text-xl font-bold font-headline">{ds.name}</h2>
               <p className="text-sm text-on-surface-variant">{ds.rowCount?.toLocaleString()} rows · {ds.headers?.length} columns · Page {page} of {totalPages}</p>
             </div>
-            <button onClick={() => { setActive(ds.id); navigate('/reports'); }}
-              className="px-4 py-2 bg-primary/10 text-primary hover:bg-primary hover:text-on-primary rounded-lg text-sm font-semibold transition-all cursor-pointer flex items-center gap-2">
-              <span className="material-symbols-outlined text-sm">bar_chart</span> View Reports
-            </button>
           </div>
 
           <div className="bg-surface-container-low rounded-xl overflow-auto border border-outline-variant/10">
@@ -280,6 +438,33 @@ export default function DataExplorer() {
               <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)}
                 className="px-3 py-1.5 rounded-lg bg-surface-container-high hover:bg-surface-bright disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer text-xs font-medium">Next →</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Data Stories (Plain-English Storytelling) ── */}
+      {ds && viewMode === 'stories' && (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-xl font-bold font-headline mb-1">Data Stories</h2>
+            <p className="text-sm text-on-surface-variant">Your dataset's key findings translated into plain English — ready for your next presentation.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {stories.map((story, i) => (
+              <div key={i} className={`bg-surface-container-low rounded-xl border border-outline-variant/10 p-5 hover:border-${story.severity}/20 transition-all`}>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className={`w-9 h-9 rounded-lg bg-${story.severity}/10 text-${story.severity} flex items-center justify-center`}>
+                    <span className="material-symbols-outlined text-lg">{story.icon}</span>
+                  </div>
+                  <h4 className="font-headline font-bold text-sm">{story.title}</h4>
+                </div>
+                <p className="text-sm text-on-surface-variant leading-relaxed"
+                  dangerouslySetInnerHTML={{ __html: renderStoryText(story.text) }} />
+              </div>
+            ))}
+            {stories.length === 0 && (
+              <p className="text-sm text-on-surface-variant col-span-2 text-center py-8">No stories to generate — upload a more complex dataset.</p>
+            )}
           </div>
         </div>
       )}
