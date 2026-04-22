@@ -4,7 +4,7 @@ import { useDataset } from '../context/DatasetContext';
 import ArtifactTable from '../components/ui/ArtifactTable';
 import QualityBadge from '../components/ui/QualityBadge';
 import QualityFlagChips from '../components/ui/QualityFlagChips';
-import InsightCard from '../components/ui/InsightCard';
+
 
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
