@@ -3,6 +3,7 @@ import localforage from 'localforage';
 import { computeAllStats } from '../lib/statsEngine';
 import { cleanseDataset } from '../lib/dataCleaner';
 import { downloadCSV } from '../lib/csvExport';
+import { preprocessCSV, parseCSVLine } from '../lib/csvPreprocessor';
 
 const API_URL = 'http://127.0.0.1:5000/api/datasets';
 
@@ -13,19 +14,28 @@ function getToken() {
 // ─── Parsing ──────────────────────────────────────────────────────────────────
 
 function parseCSV(text) {
-  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  // Step 1: Pre-process raw text to fix structural column shifting
+  // (e.g., unquoted commas in "4,500" or "$95,000" causing row misalignment)
+  const fixedText = preprocessCSV(text);
+
+  const lines = fixedText.split(/\r?\n/).filter(l => l.trim());
   if (lines.length < 2) throw new Error('CSV has no data rows');
-  const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim());
+
+  // Step 2: Parse header using robust quoted-field parser
+  const headers = parseCSVLine(lines[0]).map(h => h.replace(/^"|"$/g, '').trim());
+
+  // Step 3: Parse data rows
   const rows = lines.slice(1).map(line => {
-    const vals = line.match(/(\".*?\"|[^,]+|(?<=,)(?=,)|(?<=,)$|^(?=,))/g) || [];
+    const vals = parseCSVLine(line);
     const row = {};
     headers.forEach((h, i) => {
-      const raw = (vals[i] || '').replace(/^"|"$/g, '').trim();
+      const raw = (vals[i] ?? '').replace(/^"|"$/g, '').trim();
       const num = Number(raw);
       row[h] = raw === '' ? null : isNaN(num) ? raw : num;
     });
     return row;
   }).filter(row => Object.values(row).some(v => v !== null && v !== ''));
+
   return { headers, rows, rowCount: rows.length };
 }
 
