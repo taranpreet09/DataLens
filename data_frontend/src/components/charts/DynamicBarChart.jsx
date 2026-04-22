@@ -8,7 +8,6 @@ import {
   CartesianGrid,
   YAxis,
 } from 'recharts';
-import EmptyChartState from './EmptyChartState';
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
@@ -25,35 +24,44 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 export default function DynamicBarChart({ data, xAxisKey = "range", barKey = "count", color = "#c799ff" }) {
-  if (!data || !data.length) return <EmptyChartState label="No data to visualize" />;
+  if (!data || !data.length) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full min-h-[200px] w-full gap-3 opacity-40">
+        <span className="material-symbols-outlined text-3xl">bar_chart</span>
+        <p className="text-xs text-on-surface-variant font-medium text-center">No data to visualize</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="w-full h-full min-h-[300px]">
+    <div style={{ width: '100%', height: '100%', minHeight: 200 }}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#ffffff" strokeOpacity={0.05} vertical={false} />
-          <XAxis 
-            dataKey={xAxisKey} 
-            axisLine={false} 
-            tickLine={false} 
+          <XAxis
+            dataKey={xAxisKey}
+            axisLine={false}
+            tickLine={false}
             tick={{ fill: '#767575', fontSize: 9, fontFamily: 'Inter' }}
             dy={10}
-            tickFormatter={(val) => val.split(' – ')[0]} // Simplify range strings
+            tickFormatter={(val) => {
+              if (typeof val === 'string' && val.includes(' – ')) return val.split(' – ')[0];
+              if (typeof val === 'string' && val.length > 12) return val.slice(0, 10) + '…';
+              return val;
+            }}
           />
-          <YAxis 
-            axisLine={false} 
-            tickLine={false} 
-            tick={{ fill: '#767575', fontSize: 10, fontFamily: 'Inter' }} 
-            tickFormatter={(value) => new Intl.NumberFormat('en-US', { notation: "compact", compactDisplay: "short" }).format(value)}
+          <YAxis
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: '#767575', fontSize: 10, fontFamily: 'Inter' }}
+            tickFormatter={(value) =>
+              new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(value)
+            }
           />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: `${color}11` }} />
-          <Bar 
-            dataKey={barKey} 
-            radius={[4, 4, 0, 0]}
-            animationDuration={800}
-          >
-            {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={color} fillOpacity={0.8} className="hover:opacity-100 transition-opacity" />
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: `${color}18` }} />
+          <Bar dataKey={barKey} radius={[4, 4, 0, 0]} animationDuration={800} isAnimationActive={true}>
+            {data.map((_, index) => (
+              <Cell key={`cell-${index}`} fill={color} fillOpacity={0.85} />
             ))}
           </Bar>
         </BarChart>

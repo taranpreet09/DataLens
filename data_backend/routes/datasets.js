@@ -11,6 +11,7 @@ router.use(authMiddleware);
 router.post('/', async (req, res) => {
   try {
     const { name, size, ext, rowCount, headers, stats, parseTime, rows } = req.body;
+    console.log(`📥 Saving dataset: "${name}" (${rowCount} rows, ${headers?.length} cols)`);
 
     const dataset = await Dataset.create({
       userId: req.userId,
@@ -24,10 +25,11 @@ router.post('/', async (req, res) => {
       rows,
     });
 
+    console.log(`✅ Dataset saved: ${dataset._id}`);
     res.status(201).json({ dataset });
   } catch (err) {
-    console.error('Save dataset error:', err);
-    res.status(500).json({ message: 'Could not save dataset.' });
+    console.error('❌ Save dataset error:', err.message || err);
+    res.status(500).json({ message: 'Could not save dataset.', error: err.message });
   }
 });
 

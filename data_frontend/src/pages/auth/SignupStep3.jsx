@@ -1,8 +1,14 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useSignup } from '../../context/SignupContext';
+import { useAuth } from '../../context/AuthContext';
 
 export default function SignupStep3() {
-  const [selectedRole, setSelectedRole] = useState('business_intelligence');
+  const { formData, updateFields } = useSignup();
+  const { signup } = useAuth();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const options = [
     {
@@ -35,6 +41,20 @@ export default function SignupStep3() {
     }
   ];
 
+  const handleFinishSetup = async () => {
+    setError('');
+    setLoading(true);
+
+    try {
+      await signup(formData);
+      navigate('/dashboard');
+    } catch (err) {
+      setError(err.message || 'Failed to create account. Please go back and check your details.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="w-full flex flex-col items-center justify-start px-6 py-2">
       {/* Header Section */}
@@ -47,11 +67,18 @@ export default function SignupStep3() {
         </p>
       </section>
 
+      {error && (
+        <div className="w-full max-w-md mb-6 px-4 py-3 rounded-xl bg-error/10 border border-error/20 text-error text-xs font-medium flex items-center gap-2">
+          <span className="material-symbols-outlined text-sm shrink-0">error</span>
+          <span>{error}</span>
+        </div>
+      )}
+
       {/* Bento Grid Purpose Selection */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full max-w-5xl">
         {options.map((opt) => {
-          const isActive = selectedRole === opt.id;
-          const baseCardClass = `group relative flex flex-col items-start p-5 rounded-xl text-left overflow-hidden transition-all duration-300 cursor-pointer `;
+          const isActive = formData.platform === opt.id;
+          const baseCardClass = `group relative flex flex-col items-start p-5 rounded-xl text-left overflow-hidden transition-all duration-300 cursor-pointer disabled:opacity-50 `;
           const inactiveClass = `bg-surface-container-low border border-outline-variant/10 hover:border-${opt.colorClass}/50`;
           const activeClass = `bg-surface-container-high border-2 border-${opt.colorClass} shadow-glow-${opt.colorClass}`;
 
@@ -62,7 +89,8 @@ export default function SignupStep3() {
           return (
             <button 
               key={opt.id}
-              onClick={() => setSelectedRole(opt.id)}
+              onClick={() => !loading && updateFields({ platform: opt.id })}
+              disabled={loading}
               className={`${baseCardClass} ${isActive ? activeClass : inactiveClass}`}
               style={isActive ? { borderColor: `var(--color-${opt.colorClass})`, boxShadow: `0 0 20px -5px rgba(var(--color-${opt.colorClass}-rgb), 0.3)` } : {}}
             >
@@ -95,10 +123,23 @@ export default function SignupStep3() {
 
       {/* Footer Actions */}
       <div className="mt-8 flex flex-col items-center gap-3 w-full">
-        <Link to="/dashboard" className="w-full max-w-sm bg-primary hover:bg-primary-container text-on-primary font-headline font-extrabold text-base py-4 rounded-xl shadow-glow-primary transition-all active:scale-95 flex items-center justify-center gap-3">
-          Finish Setup
-          <span className="material-symbols-outlined">rocket_launch</span>
-        </Link>
+        <button 
+          onClick={handleFinishSetup}
+          disabled={loading}
+          className="w-full max-w-sm bg-primary hover:bg-primary-container text-on-primary font-headline font-extrabold text-base py-4 rounded-xl shadow-glow-primary transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? (
+            <>
+              Creating Account...
+              <span className="w-5 h-5 border-2 border-on-primary border-t-transparent rounded-full animate-spin"></span>
+            </>
+          ) : (
+            <>
+              Finish Setup
+              <span className="material-symbols-outlined">rocket_launch</span>
+            </>
+          )}
+        </button>
         <Link to="/signup/step2" className="text-on-surface-variant hover:text-white transition-colors font-label font-medium text-sm flex items-center gap-2">
           <span className="material-symbols-outlined text-sm">arrow_back</span>
           Go back to Step 2

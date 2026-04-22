@@ -1,6 +1,8 @@
 import { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
 import localforage from 'localforage';
 import { computeAllStats } from '../lib/statsEngine';
+import { cleanseDataset } from '../lib/dataCleaner';
+import { downloadCSV } from '../lib/csvExport';
 
 const API_URL = 'http://127.0.0.1:5000/api/datasets';
 
@@ -81,7 +83,6 @@ function baseReducer(state, action) {
 
 function reducer(state, action) {
   const nextState = baseReducer(state, action);
-  // Persist to localForage for offline/guest capability
   if (['ADD_DATASET', 'UPDATE_DATASET', 'DELETE_DATASET', 'SET_ACTIVE'].includes(action.type) || 
       (action.type === 'SET_ALL' && action.payload.length > 0)) {
      localforage.setItem('datalens_datasets', nextState.datasets).catch(() => {});
@@ -92,60 +93,84 @@ function reducer(state, action) {
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
+import { useAuth } from './AuthContext';
+
 const DatasetContext = createContext(null);
 
 export function DatasetProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const { isAuthenticated } = useAuth();
 
-  // On app load — fetch saved datasets from localForage, then backend
   useEffect(() => {
     let isMounted = true;
-    
     const init = async () => {
       // 1. Load local datasets instantly (for guests & offline)
+      let localDatasets = [];
       try {
-        const localDatasets = await localforage.getItem('datalens_datasets');
+        localDatasets = (await localforage.getItem('datalens_datasets')) || [];
         const localActiveId = await localforage.getItem('datalens_activeId');
-        if (isMounted && localDatasets && localDatasets.length > 0) {
+        if (isMounted && localDatasets.length > 0) {
           dispatch({ type: 'SET_ALL', payload: localDatasets, activeId: localActiveId });
         }
-      } catch (err) {
-        // ignore
-      }
+      } catch (err) { /* ignore */ }
 
       // 2. Fetch from backend if logged in
       const token = getToken();
-      if (!token || !isMounted) return;
+      if (!token || !isMounted || !isAuthenticated) return;
 
-      fetch(API_URL, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then(res => res.ok ? res.json() : Promise.reject())
-        .then(data => {
-          if (!isMounted) return;
-          const loaded = data.datasets.map(d => ({
-            id: d._id,
-            name: d.name,
-            size: d.size,
-            ext: d.ext,
-            rowCount: d.rowCount,
-            headers: d.headers,
-            stats: d.stats,
-            parseTime: d.parseTime,
-            createdAt: new Date(d.createdAt),
-            status: d.rows && d.rows.length > 0 ? 'ready' : 'saved',
-            rows: d.rows || [],
-          }));
-          if (loaded.length > 0) {
-            dispatch({ type: 'SET_ALL', payload: loaded });
+      try {
+        const res = await fetch(API_URL, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return;
+        const data = await res.json();
+
+        const remoteDatasets = data.datasets.map(d => ({
+          id: d._id, name: d.name, size: d.size, ext: d.ext,
+          rowCount: d.rowCount, headers: d.headers, stats: d.stats,
+          parseTime: d.parseTime, createdAt: new Date(d.createdAt),
+          status: d.rows && d.rows.length > 0 ? 'ready' : 'saved',
+          rows: d.rows || [], dbId: d._id,
+        }));
+
+        // 3. Sync local-only datasets to backend (uploaded as guest)
+        const unsyncedLocal = localDatasets.filter(d => d.status === 'ready' && !d.dbId && d.rows?.length > 0);
+        for (const ld of unsyncedLocal) {
+          try {
+            console.log(`🔄 Syncing local dataset "${ld.name}" to backend...`);
+            const syncRes = await fetch(API_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify({
+                name: ld.name, size: ld.size, ext: ld.ext,
+                rowCount: ld.rowCount, headers: ld.headers,
+                stats: ld.stats, parseTime: ld.parseTime, rows: ld.rows,
+              }),
+            });
+            if (syncRes.ok) {
+              const saved = await syncRes.json();
+              console.log(`✅ Synced "${ld.name}" → ${saved.dataset._id}`);
+              // Add it to remoteDatasets so it appears in the final merged list
+              remoteDatasets.push({
+                ...ld, id: saved.dataset._id, dbId: saved.dataset._id,
+              });
+            } else {
+              console.error(`❌ Failed to sync "${ld.name}":`, await syncRes.text());
+              // Keep local version
+              remoteDatasets.push(ld);
+            }
+          } catch (syncErr) {
+            console.error(`❌ Network error syncing "${ld.name}":`, syncErr.message);
+            remoteDatasets.push(ld);
           }
-        })
-        .catch(() => {});
-    };
+        }
 
+        if (isMounted && remoteDatasets.length > 0) {
+          dispatch({ type: 'SET_ALL', payload: remoteDatasets });
+        }
+      } catch { /* network error, stick with local */ }
+    };
     init();
     return () => { isMounted = false; };
-  }, []);
+  }, [isAuthenticated]);
 
   const uploadDataset = useCallback(async (file) => {
     const id = `ds-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -162,11 +187,9 @@ export function DatasetProvider({ children }) {
       const t0 = performance.now();
       let parsed;
       if (ext === 'csv') {
-        const text = await file.text();
-        parsed = parseCSV(text);
+        parsed = parseCSV(await file.text());
       } else if (ext === 'xlsx' || ext === 'xls') {
-        const buffer = await file.arrayBuffer();
-        parsed = await parseExcel(buffer);
+        parsed = await parseExcel(await file.arrayBuffer());
       } else {
         throw new Error('Unsupported file type. Use CSV or Excel.');
       }
@@ -176,65 +199,69 @@ export function DatasetProvider({ children }) {
 
       dispatch({
         type: 'UPDATE_DATASET',
-        payload: {
-          id,
-          status: 'ready',
-          headers: parsed.headers,
-          rows: parsed.rows,
-          rowCount: parsed.rowCount,
-          stats,
-          parseTime,
-        },
+        payload: { id, status: 'ready', headers: parsed.headers, rows: parsed.rows, rowCount: parsed.rowCount, stats, parseTime },
       });
 
-      // Save data to backend if logged in
       const token = getToken();
       if (token) {
-        const res = await fetch(API_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            name,
-            size,
-            ext,
-            rowCount: parsed.rowCount,
-            headers: parsed.headers,
-            stats,
-            parseTime,
-            rows: parsed.rows,
-          }),
-        });
-
-        if (res.ok) {
-          const saved = await res.json();
-          dispatch({
-            type: 'UPDATE_DATASET',
-            payload: { id, dbId: saved.dataset._id },
+        console.log(`📤 Saving dataset "${name}" to backend (${parsed.rowCount} rows)...`);
+        try {
+          const res = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ name, size, ext, rowCount: parsed.rowCount, headers: parsed.headers, stats, parseTime, rows: parsed.rows }),
           });
+          if (res.ok) {
+            const saved = await res.json();
+            console.log(`✅ Dataset saved to DB: ${saved.dataset._id}`);
+            dispatch({ type: 'UPDATE_DATASET', payload: { id, dbId: saved.dataset._id } });
+          } else {
+            const errBody = await res.text();
+            console.error(`❌ Backend save failed (${res.status}):`, errBody);
+          }
+        } catch (fetchErr) {
+          console.error('❌ Network error saving dataset:', fetchErr.message);
         }
+      } else {
+        console.log('⚠️ No auth token — dataset saved locally only (guest mode)');
       }
-
     } catch (err) {
       dispatch({ type: 'UPDATE_DATASET', payload: { id, status: 'error', error: err.message } });
     }
     return id;
   }, []);
 
+  // ─── 1-Click Clean: Standardize the active dataset ────────────────────
+  const cleanDataset = useCallback((datasetId) => {
+    const ds = state.datasets.find(d => d.id === datasetId);
+    if (!ds || !ds.stats || !ds.rows?.length) return null;
+
+    const { cleanedRows, report } = cleanseDataset(ds.headers, ds.rows, ds.stats.columnTypes);
+    if (report.totalChanges === 0) return report;
+
+    const newStats = computeAllStats(ds.headers, cleanedRows);
+    dispatch({
+      type: 'UPDATE_DATASET',
+      payload: { id: datasetId, rows: cleanedRows, rowCount: cleanedRows.length, stats: newStats, cleaned: true },
+    });
+    return report;
+  }, [state.datasets]);
+
+  // ─── Export current dataset as CSV ────────────────────────────────────
+  const exportDatasetCSV = useCallback((datasetId) => {
+    const ds = state.datasets.find(d => d.id === datasetId);
+    if (!ds || !ds.rows?.length) return;
+    const baseName = ds.name.replace(/\.[^.]+$/, '');
+    downloadCSV(ds.headers, ds.rows, `${baseName}-cleaned.csv`);
+  }, [state.datasets]);
+
   const deleteDataset = useCallback(async (id) => {
     const ds = state.datasets.find(d => d.id === id);
     const dbId = ds?.dbId || (ds?.status === 'saved' ? id : null);
-
     dispatch({ type: 'DELETE_DATASET', payload: id });
-
     const token = getToken();
     if (token && dbId) {
-      fetch(`${API_URL}/${dbId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      }).catch(() => {});
+      fetch(`${API_URL}/${dbId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
     }
   }, [state.datasets]);
 
@@ -242,7 +269,7 @@ export function DatasetProvider({ children }) {
   const activeDataset = state.datasets.find(d => d.id === state.activeId) ?? null;
 
   return (
-    <DatasetContext.Provider value={{ ...state, activeDataset, uploadDataset, deleteDataset, setActive }}>
+    <DatasetContext.Provider value={{ ...state, activeDataset, uploadDataset, deleteDataset, setActive, cleanDataset, exportDatasetCSV }}>
       {children}
     </DatasetContext.Provider>
   );
