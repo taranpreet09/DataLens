@@ -907,14 +907,42 @@ function generateInsights(ds, stats) {
 
 // ─── Step 14: Data Quality Score ───────────────────────────────────────────────
 
-function computeQualityScore(qualityFlags, rowCount, colCount) {
+const DIRTY_NUMERIC_STRINGS = /[$€£¥₹]/;
+const NULL_STRINGS_SCORE = new Set([
+  'n/a', 'na', 'N/A', 'NA', 'null', 'NULL', 'none', 'None', 'NONE',
+  '-', '--', 'missing', 'MISSING', 'undefined', '#N/A', '#NA', 'NaN', 'nan',
+]);
+
+function computeQualityScore(qualityFlags, rowCount, colCount, rows, headers, columnTypes) {
+  if (!rowCount || !colCount) return 100;
+
   const totalCells = rowCount * colCount;
   const nullPct = totalCells > 0 ? (qualityFlags.totalNullCount / totalCells) * 100 : 0;
   const dupePct = rowCount > 0 ? (qualityFlags.duplicateRowCount / rowCount) * 100 : 0;
   const mixedTypePct = colCount > 0 ? (qualityFlags.mixedTypeColumns.length / colCount) * 100 : 0;
 
+  // Count dirty string values (currency symbols, N/A strings still present as text in numeric/date cols)
+  let dirtyStringCount = 0;
+  if (rows && headers && columnTypes) {
+    const sampleRows = rows.slice(0, Math.min(rows.length, 500));
+    for (const h of headers) {
+      for (const row of sampleRows) {
+        const val = row[h];
+        if (val === null || val === undefined || typeof val === 'number') continue;
+        const s = String(val).trim();
+        if (NULL_STRINGS_SCORE.has(s)) dirtyStringCount++;
+        else if (DIRTY_NUMERIC_STRINGS.test(s) && /\d/.test(s)) dirtyStringCount++;
+      }
+    }
+  }
+  const dirtyStringPct = totalCells > 0 ? (dirtyStringCount / totalCells) * 100 : 0;
+
   const score = Math.round(Math.max(0, Math.min(100,
-    100 - (nullPct * 0.4) - (dupePct * 0.4) - (mixedTypePct * 0.2)
+    100
+    - (nullPct * 0.35)
+    - (dupePct * 0.35)
+    - (mixedTypePct * 0.15)
+    - (dirtyStringPct * 0.5)   // dirty strings penalize more aggressively
   )));
   return score;
 }
@@ -964,7 +992,7 @@ export function computeAllStats(headers, rows) {
   const qualityFlags = computeQualityFlags(rows, headers, columnTypes, numericStats, columnBasics, anomalies, dateStats);
 
   // Step 14: Quality score
-  const qualityScore = computeQualityScore(qualityFlags, rowCount, headers.length);
+  const qualityScore = computeQualityScore(qualityFlags, rowCount, headers.length, rows, headers, columnTypes);
 
   // Build summarized stats object
   const statsObj = {

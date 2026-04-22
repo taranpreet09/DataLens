@@ -1,0 +1,21 @@
+Employee_ID,Name,Department,Salary,Join_Date,Performance_Score,Bonus,Manager
+E001,Alice Johnson,Engineering,"$95,000",15/03/2021,4.5,"$8,000",Michael
+E002,Bob Smith,Marketing,N/A,2020-07-22,3.8,N/A,Sarah
+E003,Carol Davis,Engineering,102000,March 5 2022,4.9,9500,Michael
+E004,Dave Wilson,HR,55000,11-01-2019,N/A,3000,Sarah
+E005,Eve Martinez,Marketing,N/A,25/06/2023,4.1,5500,Sarah
+E006,Frank Brown,Engineering,88000,2021/09/14,3.5,7000,Michael
+E007,Grace Lee,HR,52000,2018-04-30,4.7,2800,Sarah
+E008,Henry Davis,Marketing,61000,01-12-2022,N/A,4200,Sarah
+E009,Iris Taylor,Engineering,N/A,2023/03/18,4.3,"$8,500",Michael
+E010,Jack Wilson,HR,49000,17/08/2020,3.9,-,Sarah
+E011,Karen Moore,Engineering,97000,2021-11-02,4.8,9000,Michael
+E012,Leo Anderson,Marketing,66000,NULL,3.6,4800,Sarah
+E013,Maya Thompson,Engineering,N/A,2022-05-19,4.2,7800,Michael
+E014,Noah Jackson,HR,53000,30/01/2023,N/A,3200,Sarah
+E015,Olivia White,Marketing,71000,2020/12/07,4.0,5100,Sarah
+E016,Paul Harris,Engineering,N/A,2019-08-25,3.7,missing,Michael
+E017,Quinn Martin,HR,48000,14/04/2021,4.6,2600,Sarah
+E018,Rita Garcia,Engineering,105000,2022-10-11,N/A,10000,Michael
+E019,Sam Robinson,Marketing,N/A,2023-01-28,4.4,6200,Sarah
+E020,Tina Clark,Engineering,91000,2020/06/03,4.1,"$8,200",Michael

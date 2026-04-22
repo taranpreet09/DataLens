@@ -10,9 +10,11 @@ const NULL_STRINGS = new Set([
   'NaN', 'nan', 'inf', '-inf',
 ]);
 
+// Regex to detect a "dirty numeric" string regardless of detected column type
+// Matches things like: $95,000 | €1.234,56 | (500) | 1,200.50 | 45% | ₹8,000
+const DIRTY_NUMERIC_RE = /^[($€£¥₹\s]*[\d][\d,.\s]*[)%]?$|^[($€£¥₹][,.\d\s]+$/;
+
 // ─── Currency / Number Cleaning ────────────────────────────────────────────────
-// Strips $, €, £, ¥, ₹ and thousands separators to recover numeric values
-// e.g. "$1,234.56" → 1234.56, "€ 2.345,67" → 2345.67, "(500)" → -500
 
 function cleanNumericValue(val) {
   if (val === null || val === undefined) return null;
@@ -20,23 +22,20 @@ function cleanNumericValue(val) {
 
   let s = String(val).trim();
 
-  // Check null-ish strings first
   if (NULL_STRINGS.has(s)) return null;
   if (s === '') return null;
 
-  // Check for percentage
   const isPct = s.endsWith('%');
   if (isPct) s = s.slice(0, -1);
 
-  // Check for accounting-style negatives: (500) → -500
-  const isNegParens = /^\([\d,.\s$€£¥₹]+\)$/.test(s);
+  // Accounting-style negatives: (500) → -500
+  const isNegParens = /^\([\d,.\\s$€£¥₹]+\)$/.test(s);
   if (isNegParens) s = s.replace(/[()]/g, '');
 
   // Strip currency symbols and whitespace
   s = s.replace(/[$€£¥₹\s]/g, '');
 
-  // Handle European format: 1.234,56 → 1234.56
-  // Detect: has both . and , where , appears after .
+  // European format: 1.234,56 → 1234.56
   if (/^\d{1,3}(\.\d{3})*(,\d+)?$/.test(s)) {
     s = s.replace(/\./g, '').replace(',', '.');
   } else {
@@ -45,7 +44,7 @@ function cleanNumericValue(val) {
   }
 
   const num = Number(s);
-  if (isNaN(num)) return null; // couldn't parse
+  if (isNaN(num)) return null;
 
   let result = isPct ? num / 100 : num;
   if (isNegParens) result = -Math.abs(result);
@@ -53,11 +52,10 @@ function cleanNumericValue(val) {
 }
 
 // ─── Date Cleaning ─────────────────────────────────────────────────────────────
-// Standardizes mixed date formats to ISO YYYY-MM-DD
 
 function cleanDateValue(val) {
   if (val === null || val === undefined) return null;
-  if (typeof val === 'number') return null; // Excel serial numbers ignored for now
+  if (typeof val === 'number') return null;
 
   const s = String(val).trim();
   if (NULL_STRINGS.has(s) || s === '') return null;
@@ -71,7 +69,7 @@ function cleanDateValue(val) {
     }
   }
 
-  // Try DD/MM/YYYY or DD-MM-YYYY
+  // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
   const ddmmyyyy = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
   if (ddmmyyyy) {
     const [, a, b, year] = ddmmyyyy;
@@ -81,7 +79,43 @@ function cleanDateValue(val) {
     }
   }
 
-  return null; // couldn't parse
+  // YYYY/MM/DD
+  const yyyymmdd = s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/);
+  if (yyyymmdd) {
+    const [, year, month, day] = yyyymmdd;
+    if (parseInt(month) >= 1 && parseInt(month) <= 12) {
+      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
+  }
+
+  // Month Name formats: "March 5 2022", "5 March 2022", "Mar 5, 2022"
+  const monthNames = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+  const monthShort = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+
+  const namedDate = s.match(/^([a-zA-Z]+)\s+(\d{1,2})[,\s]+(\d{4})$/) ||
+                    s.match(/^(\d{1,2})\s+([a-zA-Z]+)[,\s]+(\d{4})$/);
+  if (namedDate) {
+    let monthStr, day, year;
+    // "March 5 2022" format
+    const m1 = s.match(/^([a-zA-Z]+)\s+(\d{1,2})[,\s]+(\d{4})$/);
+    if (m1) { [, monthStr, day, year] = m1; }
+    // "5 March 2022" format
+    const m2 = s.match(/^(\d{1,2})\s+([a-zA-Z]+)[,\s]+(\d{4})$/);
+    if (m2) { [, day, monthStr, year] = m2; }
+
+    if (monthStr) {
+      const ml = monthStr.toLowerCase();
+      let monthIdx = monthNames.findIndex(m => m.startsWith(ml.slice(0, 3)));
+      if (monthIdx === -1) monthIdx = monthShort.indexOf(ml.slice(0, 3));
+      if (monthIdx !== -1) {
+        const m = String(monthIdx + 1).padStart(2, '0');
+        const d2 = String(parseInt(day)).padStart(2, '0');
+        return `${year}-${m}-${d2}`;
+      }
+    }
+  }
+
+  return null;
 }
 
 // ─── General null standardization ──────────────────────────────────────────────
@@ -93,8 +127,28 @@ function cleanGeneralValue(val) {
   return s;
 }
 
+// ─── Detect if a string VALUE looks like a dirty numeric, regardless of column type ──
+// This addresses the case where type detection misclassifies a column
+
+function looksLikeDirtyNumeric(val) {
+  if (typeof val !== 'string') return false;
+  const s = val.trim();
+  if (NULL_STRINGS.has(s) || s === '') return false;
+  return /[$€£¥₹]/.test(s) && /[\d]/.test(s);
+}
+
+function looksLikeDirtyDate(val) {
+  if (typeof val !== 'string') return false;
+  const s = val.trim();
+  if (NULL_STRINGS.has(s) || s === '') return false;
+  // Matches DD/MM/YYYY, YYYY/MM/DD, "March 5 2022", "11-01-2019"
+  return /^\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{4}$/.test(s) ||
+         /^\d{4}[\/\-.]\d{1,2}[\/\-.]\d{1,2}$/.test(s) ||
+         /^[a-zA-Z]+ \d{1,2}[, ]+\d{4}$/.test(s) ||
+         /^\d{1,2} [a-zA-Z]+[, ]+\d{4}$/.test(s);
+}
+
 // ─── Main Cleansing Function ───────────────────────────────────────────────────
-// Takes headers, rows, and columnTypes, returns cleaned rows + a report of changes
 
 export function cleanseDataset(headers, rows, columnTypes) {
   const report = {
@@ -105,11 +159,26 @@ export function cleanseDataset(headers, rows, columnTypes) {
     columnReports: {},
   };
 
+  // ── Per-column override: if a column is flagged as text/categorical but has
+  //    currency symbols or dirty dates in >20% of values, upgrade it so the
+  //    cleaner actually fixes those values.
+  const effectiveTypes = { ...columnTypes };
+
+  for (const h of headers) {
+    const sampleVals = rows.slice(0, 200).map(r => r[h]).filter(v => v !== null && v !== '');
+    if (sampleVals.length === 0) continue;
+
+    const currencyCount = sampleVals.filter(v => looksLikeDirtyNumeric(v)).length;
+    if (currencyCount / sampleVals.length > 0.2 && effectiveTypes[h] !== 'numeric') {
+      effectiveTypes[h] = 'numeric'; // upgrade to numeric so we strip currency
+    }
+  }
+
   const cleanedRows = rows.map(row => {
     const newRow = { ...row };
 
     for (const h of headers) {
-      const type = columnTypes[h];
+      const type = effectiveTypes[h];
       const original = row[h];
       let cleaned;
 
@@ -124,7 +193,20 @@ export function cleanseDataset(headers, rows, columnTypes) {
           report.datesCleaned++;
         }
       } else {
-        cleaned = cleanGeneralValue(original);
+        // For text/categorical: still try to fix null-ish strings
+        // AND opportunistically fix any currency values that slipped through type detection
+        const s = original !== null ? String(original).trim() : null;
+        if (s !== null && looksLikeDirtyNumeric(s)) {
+          const numAttempt = cleanNumericValue(s);
+          cleaned = numAttempt !== null ? numAttempt : cleanGeneralValue(original);
+          if (cleaned !== original && typeof cleaned === 'number') report.numericsCleaned++;
+        } else if (s !== null && (columnTypes[h] === 'text' || columnTypes[h] === 'categorical') && looksLikeDirtyDate(s)) {
+          const dateAttempt = cleanDateValue(s);
+          cleaned = dateAttempt !== null ? dateAttempt : cleanGeneralValue(original);
+          if (cleaned !== original && cleaned !== null) report.datesCleaned++;
+        } else {
+          cleaned = cleanGeneralValue(original);
+        }
       }
 
       // Track null standardization
@@ -165,40 +247,41 @@ export function detectDirtyColumns(headers, rows, columnTypes) {
     const type = columnTypes[h];
     let dirtyCount = 0;
     const samples = [];
+    const sample = rows.slice(0, 500);
 
-    for (let i = 0; i < Math.min(rows.length, 500); i++) {
-      const val = rows[i][h];
+    for (const row of sample) {
+      const val = row[h];
       if (val === null || val === undefined || val === '') continue;
+
+      const s = String(val).trim();
+
+      if (NULL_STRINGS.has(s)) {
+        dirtyCount++;
+        if (samples.length < 3) samples.push(s);
+        continue;
+      }
+
+      // Currency symbols are dirty regardless of column type
+      if (looksLikeDirtyNumeric(s)) {
+        dirtyCount++;
+        if (samples.length < 3) samples.push(s);
+        continue;
+      }
 
       if (type === 'numeric' || type === 'id') {
         if (typeof val === 'string') {
-          const s = String(val).trim();
-          if (NULL_STRINGS.has(s)) {
-            dirtyCount++;
-            if (samples.length < 3) samples.push(s);
-          } else if (/[$€£¥₹,()%]/.test(s) || /^\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) {
+          if (/[€£¥₹,()%]/.test(s) || /^\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) {
             dirtyCount++;
             if (samples.length < 3) samples.push(s);
           }
         }
       } else if (type === 'date') {
         if (typeof val === 'string') {
-          const s = String(val).trim();
-          if (NULL_STRINGS.has(s)) {
+          const d = new Date(s);
+          if (isNaN(d.getTime())) {
             dirtyCount++;
-          } else {
-            const d = new Date(s);
-            if (isNaN(d.getTime())) {
-              dirtyCount++;
-              if (samples.length < 3) samples.push(s);
-            }
+            if (samples.length < 3) samples.push(s);
           }
-        }
-      } else {
-        // Text/categorical — check for N/A type strings
-        if (typeof val === 'string' && NULL_STRINGS.has(String(val).trim())) {
-          dirtyCount++;
-          if (samples.length < 3) samples.push(String(val).trim());
         }
       }
     }
@@ -208,7 +291,7 @@ export function detectDirtyColumns(headers, rows, columnTypes) {
         column: h,
         type,
         dirtyCount,
-        pct: Math.round((dirtyCount / Math.min(rows.length, 500)) * 100),
+        pct: Math.round((dirtyCount / sample.length) * 100),
         samples,
       });
     }
