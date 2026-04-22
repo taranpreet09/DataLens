@@ -82,7 +82,7 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     localStorage.removeItem('datalens_token');
     setUser(null);
-    navigate('/login');
+    navigate('/');
   }, [navigate]);
 
   const isAuthenticated = !!user;

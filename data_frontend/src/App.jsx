@@ -7,7 +7,7 @@ import Visualizer from './pages/Visualizer'
 import Reports from './pages/Reports'
 import Home from './pages/Home'
 import { DatasetProvider } from './context/DatasetContext'
-
+import { AuthProvider } from './context/AuthContext'
 import Login from './pages/auth/Login'
 import SignupLayout from './pages/auth/SignupLayout'
 import SignupStep1 from './pages/auth/SignupStep1'
@@ -33,27 +33,29 @@ function App() {
   const location = useLocation()
 
   return (
-    <DatasetProvider>
-      <AnimatePresence mode="popLayout">
-        <Routes location={location} key={location.pathname}>
-          <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<SignupLayout />}>
-            <Route index element={<SignupStep1 />} />
-            <Route path="step2" element={<SignupStep2 />} />
-            <Route path="step3" element={<SignupStep3 />} />
-          </Route>
-          <Route element={<Layout />}>
-            <Route path="dashboard" element={<LandingPage />} />
-            <Route path="data-explorer" element={<DataExplorer />} />
-            <Route path="visualizer" element={<Visualizer />} />
-            <Route path="reports" element={<Reports />} />
-            <Route path="ai-insights" element={<AIInsightsPlaceholder />} />
-          </Route>
-        </Routes>
-      </AnimatePresence>
-    </DatasetProvider>
+    <AuthProvider>
+      <DatasetProvider>
+        <AnimatePresence mode="popLayout">
+          <Routes location={location} key={location.pathname}>
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<SignupLayout />}>
+              <Route index element={<SignupStep1 />} />
+              <Route path="step2" element={<SignupStep2 />} />
+              <Route path="step3" element={<SignupStep3 />} />
+            </Route>
+            <Route element={<Layout />}>
+              <Route path="dashboard" element={<LandingPage />} />
+              <Route path="data-explorer" element={<DataExplorer />} />
+              <Route path="visualizer" element={<Visualizer />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="ai-insights" element={<AIInsightsPlaceholder />} />
+            </Route>
+          </Routes>
+        </AnimatePresence>
+      </DatasetProvider>
+    </AuthProvider>
   )
 }
 
-export default App
+export default App;
