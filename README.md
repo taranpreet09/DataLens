@@ -1,77 +1,153 @@
-# 💎 Obsidian Analytics — Advanced Analytics Engine (Eval 1)
+# Obsidian Analytics
 
-**Obsidian Analytics** is a high-performance, browser-native analytics platform designed to transform raw tabular data (CSV, XLSX, XLS) into professional-grade intelligence. Built with an "Obsidian" dark design aesthetic, it provides 13+ statistical computation layers, automated quality scoring, and interactive visualizations.
+Browser-native data intelligence platform for turning CSV and Excel files into statistics, quality checks, visualizations, plain-English insights, and exportable reports.
 
-![Status: Evaluation 1 Ready](https://img.shields.io/badge/Status-Eval_1_Ready-success?style=for-the-badge&logo=react)
-![Theme: Obsidian Dark](https://img.shields.io/badge/Theme-Obsidian_Dark-blue?style=for-the-badge&logo=tailwindcss)
+Obsidian Analytics is built as an integrated React + Node.js application. Users must sign in before uploading datasets, and uploaded files are saved to MongoDB so authenticated users can continue working with their data later.
 
-## 🎥 Core Features
+## Core Features
 
-### 1. High-Performance Stats Engine
-*   **Column Type Detection**: Automatic heuristic-based classification (ID, Numeric, Categorical, Date, Text).
-*   **Comprehensive Metrics**: Mean, Median, StdDev, IQR, Skewness, Variance, and CV% computed instantly.
-*   **Numeric Distribution**: 7-bin histograms with automated skew detection.
+### Analytics Engine
+- Automatic column type detection for IDs, numbers, categories, dates, and text
+- Descriptive statistics including mean, median, standard deviation, variance, IQR, skewness, and coefficient of variation
+- Outlier detection using Z-score and IQR methods
+- Correlation matrix and plain-English relationship summaries
+- Time-series summaries with trend, peak, and trough detection
 
-### 2. Time-Series & Trend Analysis
-*   **Linear Regression**: Automated trend line projection through temporal data.
-*   **Peak/Trough Detection**: Instant identification of historical highs and lows.
-*   **Aggregations**: Monthly/Quarterly rollups with Month-over-Month (MoM) change metrics.
+### Data Quality and Cleaning
+- Dataset health score on a 0-100 scale
+- Quality flags for missing values, duplicate rows, mixed types, skewness, and other data issues
+- One-click data standardization for common spreadsheet problems
+- Cleaned CSV export for downstream use
 
-### 3. Data Quality & Anomaly Detection
-*   **Quality Score (0-100)**: Composite metric based on nulls, duplicates, and mixed types.
-*   **Z-Score vs IQR**: Side-by-side outlier detection comparison across all numeric fields.
-*   **Pattern Matching**: Detects constant/near-constant columns and suspicious monotonic sequences.
-*   **11+ Quality Flags**: Automatic flagging of data hygiene issues (Empty rows, duplicate keys, skewness alerts).
+### Product Experience
+- Login/signup and Google OAuth support
+- MongoDB-backed dataset persistence for logged-in users
+- Dashboard, Data Explorer, Visualizer, Reports, and AI Insights pages
+- PDF report export with dataset schema, numeric analysis, insights, and quality checks
 
-### 4. Relational Insights
-*   **Correlation Heatmap**: Full Pearson r correlation matrix with purple↔red heatmap.
-*   **Categorical Analysis**: Top-K frequency distributions and category share donut charts.
-*   **Plain English Insights**: Auto-generated text summaries of key data findings.
+## Supported Files
 
-## 🛠️ Technology Stack
+- `.csv`
+- `.xlsx`
+- `.xls`
 
-*   **Frontend**: React (Vite)
-*   **Styling**: Tailwind CSS v4 (Obsidian Design System)
-*   **Visualization**: Recharts + Custom SVG Components
-*   **Data Processing**: Dedicated JavaScript Stats Engine (`statsEngine.js`)
-*   **File Parsing**: SheetJS (XLSX/XLS) + Native CSV Parsing
+Uploads are limited in the frontend to 10 MB per file. The backend currently accepts JSON payloads up to 50 MB.
 
-## 🚀 Getting Started
+## Technology Stack
 
-### Prerequisites
-*   Node.js (v18+)
-*   npm or yarn
+- Frontend: React 19, Vite, React Router
+- Styling: Tailwind CSS v4
+- Charts: Recharts and custom chart components
+- Data parsing: SheetJS for Excel, native CSV parsing and preprocessing
+- Analytics: Dedicated JavaScript stats engine
+- Backend: Node.js, Express, MongoDB, Mongoose
+- Auth: JWT, bcrypt, Google OAuth
+- Exports: jsPDF and jspdf-autotable
 
-### Installation
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-username/obsidian-analytics.git
-   ```
-2. Navigate to the frontend directory:
-   ```bash
-   cd obsidian-analytics/data_frontend
-   ```
-3. Install dependencies:
-   ```bash
-   npm install
-   ```
-4. Start the development server:
-   ```bash
-   npm run dev
-   ```
-
-## 📂 Project Structure
+## Project Structure
 
 ```text
+data_backend/
+  middleware/
+  models/
+  routes/
+  server.js
+
 data_frontend/
-├── src/
-│   ├── components/       # UI Components & Custom Charts
-│   ├── context/          # State Management (DatasetContext.jsx)
-│   ├── lib/              # The statsEngine.js heart
-│   ├── pages/            # Dashboard, Explorer, Visualizer, Reports
-│   └── index.css         # Tailwind v4 Design Tokens
-└── README.md             # Implementation Details
+  src/
+    components/
+    context/
+    lib/
+    pages/
+  index.css
 ```
 
-## 🛡️ License
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+
+- npm
+- MongoDB running locally, or a MongoDB Atlas connection string
+
+### Backend Setup
+
+```bash
+cd data_backend
+npm install
+```
+
+Create `data_backend/.env`:
+
+```env
+PORT=5000
+MONGO_URI=mongodb://127.0.0.1:27017/obsidian_analytics
+JWT_SECRET=replace_with_a_strong_secret
+GOOGLE_CLIENT_ID=your_google_client_id_optional
+```
+
+Start the backend:
+
+```bash
+npm run dev
+```
+
+The API runs at:
+
+```text
+http://127.0.0.1:5000
+```
+
+### Frontend Setup
+
+```bash
+cd data_frontend
+npm install
+```
+
+If using Google OAuth, create `data_frontend/.env`:
+
+```env
+VITE_GOOGLE_CLIENT_ID=your_google_client_id
+```
+
+Start the frontend:
+
+```bash
+npm run dev
+```
+
+The app runs at:
+
+```text
+http://localhost:5173
+```
+
+## Available Scripts
+
+Backend:
+
+```bash
+npm run dev
+npm start
+```
+
+Frontend:
+
+```bash
+npm run dev
+npm run build
+npm run lint
+npm run preview
+```
+
+## Current Notes
+
+- Uploading datasets requires authentication.
+- Authenticated datasets are stored in MongoDB with rows, headers, stats, and metadata.
+- The frontend production build passes.
+- Lint currently reports existing project issues unrelated to the latest auth/branding changes.
+
+## License
+
 MIT - Developed for Advanced Coding Evaluation 1.
