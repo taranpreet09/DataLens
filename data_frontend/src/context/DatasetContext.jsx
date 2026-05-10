@@ -5,8 +5,8 @@ import { cleanseDataset } from '../lib/dataCleaner';
 import { downloadCSV } from '../lib/csvExport';
 import { preprocessCSV, parseCSVLine } from '../lib/csvPreprocessor';
 
-const API_URL = 'http://127.0.0.1:5000/api/datasets';
-
+const API_URL = `${import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000'}/api/datasets`;
+  
 function getToken() {
   return localStorage.getItem('datalens_token');
 }

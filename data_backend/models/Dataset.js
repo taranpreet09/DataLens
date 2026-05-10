@@ -19,5 +19,8 @@ const datasetSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Index for fast user-scoped queries
+datasetSchema.index({ userId: 1, createdAt: -1 });
+
 const Dataset = mongoose.model('Dataset', datasetSchema);
 export default Dataset;

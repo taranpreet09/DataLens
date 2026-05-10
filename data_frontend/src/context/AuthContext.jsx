@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const API_URL = 'http://127.0.0.1:5000/api/auth';
+const API_URL = `${import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000'}/api/auth`;
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {

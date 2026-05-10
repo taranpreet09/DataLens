@@ -1,6 +1,7 @@
 import { Routes, Route, useLocation } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
 import Layout from './components/Layout'
+import ErrorBoundary from './components/ErrorBoundary'
 import LandingPage from './pages/LandingPage'
 import DataExplorer from './pages/DataExplorer'
 import Visualizer from './pages/Visualizer'
@@ -20,28 +21,30 @@ function App() {
   const location = useLocation()
 
   return (
-    <AuthProvider>
-      <DatasetProvider>
-        <AnimatePresence mode="popLayout">
-          <Routes location={location} key={location.pathname.split('/')[1] || '/'}>
-            <Route path="/" element={<Home />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<SignupLayout />}>
-              <Route index element={<SignupStep1 />} />
-              <Route path="step2" element={<SignupStep2 />} />
-              <Route path="step3" element={<SignupStep3 />} />
-            </Route>
-            <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-              <Route path="dashboard" element={<LandingPage />} />
-              <Route path="data-explorer" element={<DataExplorer />} />
-              <Route path="visualizer" element={<Visualizer />} />
-              <Route path="reports" element={<Reports />} />
-              <Route path="ai-insights" element={<AIInsights />} />
-            </Route>
-          </Routes>
-        </AnimatePresence>
-      </DatasetProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <DatasetProvider>
+          <AnimatePresence mode="popLayout">
+            <Routes location={location} key={location.pathname.split('/')[1] || '/'}>
+              <Route path="/" element={<Home />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<SignupLayout />}>
+                <Route index element={<SignupStep1 />} />
+                <Route path="step2" element={<SignupStep2 />} />
+                <Route path="step3" element={<SignupStep3 />} />
+              </Route>
+              <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+                <Route path="dashboard" element={<ErrorBoundary><LandingPage /></ErrorBoundary>} />
+                <Route path="data-explorer" element={<ErrorBoundary><DataExplorer /></ErrorBoundary>} />
+                <Route path="visualizer" element={<ErrorBoundary><Visualizer /></ErrorBoundary>} />
+                <Route path="reports" element={<ErrorBoundary><Reports /></ErrorBoundary>} />
+                <Route path="ai-insights" element={<ErrorBoundary><AIInsights /></ErrorBoundary>} />
+              </Route>
+            </Routes>
+          </AnimatePresence>
+        </DatasetProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   )
 }
 
