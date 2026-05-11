@@ -1,12 +1,43 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import { v4 as uuidv4 } from 'uuid';
 import Dataset from '../models/Dataset.js';
 import authMiddleware from '../middleware/auth.js';
+import { UPLOADS_DIR } from '../config/storage.js';
+import { addProcessingJob } from '../services/jobQueue.js';
+import { readRowsPage, deleteParsedFile } from '../services/fileParser.js';
+import { cacheGet, cacheSet, cacheDel } from '../config/redis.js';
 
 const router = Router();
 
 // All routes below need user to be logged in
 router.use(authMiddleware);
+
+// ─── Multer config for file uploads ──────────────────────────────────────────
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `${uuidv4()}${ext}`);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB max
+  fileFilter: (req, file, cb) => {
+    const allowed = ['.csv', '.xlsx', '.xls', '.tsv'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowed.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only CSV, TSV, and Excel files are supported.'));
+    }
+  },
+});
 
 // ─── Validation Schemas ───────────────────────────────────────────────────────
 const saveDatasetSchema = z.object({
@@ -17,10 +48,76 @@ const saveDatasetSchema = z.object({
   headers: z.array(z.string()).optional().default([]),
   stats: z.any().optional().default(null),
   parseTime: z.number().nonnegative().optional().default(0),
-  rows: z.any().optional().default([]),
+  rows: z.any().optional().default(null),
 });
 
-// Save a new dataset (called when user uploads a file)
+// ─── POST /upload — New file upload endpoint (stream-based) ──────────────────
+router.post('/upload', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded.' });
+    }
+
+    const { originalname, size, path: filePath, filename } = req.file;
+    const ext = path.extname(originalname).toLowerCase().replace('.', '');
+
+    // Create dataset record in "processing" state
+    const dataset = await Dataset.create({
+      userId: req.userId,
+      name: originalname,
+      size,
+      ext,
+      status: 'processing',
+      uploadPath: filePath,
+    });
+
+    console.log(`📤 File uploaded: "${originalname}" (${(size / 1024 / 1024).toFixed(2)} MB) → processing...`);
+
+    // Queue the processing job
+    let jobId = null;
+    try {
+      jobId = await addProcessingJob(dataset._id.toString(), req.userId, filePath);
+      await Dataset.findByIdAndUpdate(dataset._id, { jobId });
+    } catch (queueErr) {
+      // If Redis/queue is unavailable, process synchronously (fallback)
+      console.warn('⚠️  Job queue unavailable, processing synchronously:', queueErr.message);
+      const { streamParseCSV } = await import('../services/fileParser.js');
+      const { computeAllStats } = await import('../services/statsEngine.js');
+
+      const { headers, rowCount, parsedFilePath, sampleRows } = await streamParseCSV(filePath, dataset._id.toString());
+      const stats = computeAllStats(headers, sampleRows.length > 0 ? sampleRows : []);
+
+      await Dataset.findByIdAndUpdate(dataset._id, {
+        headers,
+        rowCount,
+        stats,
+        parsedFilePath,
+        status: 'ready',
+        parseTime: Date.now() - dataset.createdAt.getTime(),
+      });
+
+      const updated = await Dataset.findById(dataset._id);
+      return res.status(201).json({ dataset: updated, processed: true });
+    }
+
+    res.status(202).json({
+      dataset: {
+        _id: dataset._id,
+        name: dataset.name,
+        size: dataset.size,
+        ext: dataset.ext,
+        status: 'processing',
+      },
+      jobId,
+      message: 'File uploaded. Processing in background.',
+    });
+  } catch (err) {
+    console.error('❌ Upload error:', err.message || err);
+    res.status(500).json({ message: err.message || 'Could not upload file.' });
+  }
+});
+
+// ─── POST / — Legacy save endpoint (JSON body, backward compatible) ──────────
 router.post('/', async (req, res) => {
   try {
     const parsed = saveDatasetSchema.safeParse(req.body);
@@ -42,6 +139,7 @@ router.post('/', async (req, res) => {
       stats,
       parseTime,
       rows,
+      status: 'ready',
     });
 
     console.log(`✅ Dataset saved: ${dataset._id}`);
@@ -52,37 +150,115 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Get all datasets for the logged-in user (with pagination)
+// ─── GET / — List datasets (with pagination) ─────────────────────────────────
 router.get('/', async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
     const skip = (page - 1) * limit;
 
+    // Check cache first
+    const cacheKey = `datasets:${req.userId}:${page}:${limit}`;
+    const cached = await cacheGet(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
+
     const [datasets, total] = await Promise.all([
-      Dataset.find({ userId: req.userId }).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Dataset.find({ userId: req.userId })
+        .select('-rows') // Don't send raw rows in list view
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
       Dataset.countDocuments({ userId: req.userId }),
     ]);
 
-    res.json({
+    const response = {
       datasets,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    });
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
+
+    // Cache for 60 seconds
+    await cacheSet(cacheKey, response, 60);
+
+    res.json(response);
   } catch (err) {
     res.status(500).json({ message: 'Could not fetch datasets.' });
   }
 });
 
-// Delete one dataset
+// ─── GET /:id — Get single dataset metadata + stats ──────────────────────────
+router.get('/:id', async (req, res) => {
+  try {
+    const dataset = await Dataset.findOne({ _id: req.params.id, userId: req.userId }).select('-rows');
+    if (!dataset) return res.status(404).json({ message: 'Dataset not found.' });
+    res.json({ dataset });
+  } catch (err) {
+    res.status(500).json({ message: 'Could not fetch dataset.' });
+  }
+});
+
+// ─── GET /:id/rows — Paginated row access ────────────────────────────────────
+router.get('/:id/rows', async (req, res) => {
+  try {
+    const dataset = await Dataset.findOne({ _id: req.params.id, userId: req.userId });
+    if (!dataset) return res.status(404).json({ message: 'Dataset not found.' });
+
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit) || 50));
+
+    // If dataset has a parsed file on disk, read from there
+    if (dataset.parsedFilePath && fs.existsSync(dataset.parsedFilePath)) {
+      const result = await readRowsPage(dataset.parsedFilePath, page, limit);
+      return res.json({
+        rows: result.rows,
+        pagination: {
+          page,
+          limit,
+          total: dataset.rowCount,
+          totalPages: Math.ceil(dataset.rowCount / limit),
+        },
+      });
+    }
+
+    // Fallback: rows stored in MongoDB (legacy)
+    if (dataset.rows && Array.isArray(dataset.rows)) {
+      const start = (page - 1) * limit;
+      const rows = dataset.rows.slice(start, start + limit);
+      return res.json({
+        rows,
+        pagination: {
+          page,
+          limit,
+          total: dataset.rows.length,
+          totalPages: Math.ceil(dataset.rows.length / limit),
+        },
+      });
+    }
+
+    res.json({ rows: [], pagination: { page, limit, total: 0, totalPages: 0 } });
+  } catch (err) {
+    res.status(500).json({ message: 'Could not fetch rows.' });
+  }
+});
+
+// ─── DELETE /:id ──────────────────────────────────────────────────────────────
 router.delete('/:id', async (req, res) => {
   try {
     const dataset = await Dataset.findOne({ _id: req.params.id, userId: req.userId });
     if (!dataset) return res.status(404).json({ message: 'Dataset not found.' });
+
+    // Clean up files
+    if (dataset.uploadPath && fs.existsSync(dataset.uploadPath)) {
+      fs.unlinkSync(dataset.uploadPath);
+    }
+    if (dataset.parsedFilePath && fs.existsSync(dataset.parsedFilePath)) {
+      fs.unlinkSync(dataset.parsedFilePath);
+    }
+    deleteParsedFile(dataset._id.toString());
+
+    // Invalidate cache
+    await cacheDel(`datasets:${req.userId}:*`);
 
     await dataset.deleteOne();
     res.json({ message: 'Deleted.' });

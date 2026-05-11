@@ -1,0 +1,15 @@
+Order_ID,Order_Date,Region,Product,Category,Units,Unit_Price,Discount,Revenue,Payment_Method,Customer_Rating
+ORD001,2024-01-05,North,Laptop,Electronics,2,"$45,000",5%,"$85,500",Card,4.7
+ORD002,05/01/2024,South,Office Chair,Furniture,5,"₹3,200",0%,"₹16,000",UPI,4.2
+ORD003,Jan 06 2024,West,Notebook,Stationery,30,80,10%,2160,Cash,4.0
+ORD004,2024/01/07,East,Headphones,Electronics,8,"2,500",15%,"17,000",Card,4.5
+ORD005,08-01-2024,North,Desk,Furniture,1,"₹12,000",N/A,"₹12,000",UPI,3.9
+ORD006,2024-01-09,South,Pen Set,Stationery,50,120,5%,5700,Cash,4.1
+ORD007,10/01/2024,West,Smartphone,Electronics,3,"₹28,000",3%,"₹81,480",Card,4.8
+ORD008,January 11 2024,East,Bookshelf,Furniture,2,"₹7,500",8%,"₹13,800",UPI,4.0
+ORD009,2024.01.12,North,Marker Pack,Stationery,25,60,missing,1500,Cash,3.8
+ORD010,13-01-2024,South,Monitor,Electronics,4,"₹14,500",12%,"₹51,040",Card,4.6
+ORD011,2024-01-14,West,Table Lamp,Furniture,6,"₹1,250",0%,"₹7,500",UPI,4.3
+ORD012,14/01/2024,East,Printer,Electronics,1,"₹18,999",5%,"₹18,049.05",Card,4.4
+ORD013,2024/01/15,North,Notebook,Stationery,30,80,10%,2160,Cash,4.0
+ORD013,2024/01/15,North,Notebook,Stationery,30,80,10%,2160,Cash,4.0

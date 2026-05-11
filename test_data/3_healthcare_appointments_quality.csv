@@ -1,0 +1,16 @@
+Appointment_ID,Patient_Age,Department,Appointment_Date,Wait_Time_Min,Consultation_Fee,Diagnosis_Code,Follow_Up_Required,Patient_Satisfaction
+APT001,34,Cardiology,2024-03-01,18,800,D21,Yes,4.5
+APT002,45,Orthopedics,01/03/2024,42,700,O14,No,3.8
+APT003,29,Dermatology,March 2 2024,12,500,D09,No,4.7
+APT004,67,Cardiology,2024/03/03,55,900,C18,Yes,3.5
+APT005,52,Neurology,04-03-2024,35,"₹1,200",N22,Yes,4.0
+APT006,,Pediatrics,2024-03-05,20,450,P12,No,4.6
+APT007,38,Orthopedics,06/03/2024,N/A,700,O15,Yes,missing
+APT008,41,Dermatology,2024.03.07,10,500,D11,No,4.9
+APT009,73,Cardiology,March 8 2024,65,900,C19,Yes,3.1
+APT010,26,Neurology,09-03-2024,28,"₹1,200",N24,No,4.2
+APT011,31,Pediatrics,2024-03-10,16,450,P16,No,4.8
+APT012,58,Cardiology,10/03/2024,120,900,C22,Yes,2.8
+APT013,44,Orthopedics,2024/03/11,38,700,O18,No,4.0
+APT014,36,Dermatology,12-03-2024,9,500,D15,No,4.9
+APT015,49,Neurology,March 13 2024,31,"₹1,200",N28,Yes,4.1

@@ -1,32 +1,72 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import { createServer } from 'http';
+import { Server as SocketIO } from 'socket.io';
 import mongoose from 'mongoose';
 import rateLimit from 'express-rate-limit';
+import jwt from 'jsonwebtoken';
 import authRoutes from './routes/auth.js';
 import datasetRoutes from './routes/datasets.js';
+import analysisRoutes from './routes/analysis.js';
+
 const app = express();
+const httpServer = createServer(app);
 const PORT = process.env.PORT || 5000;
 
-// ─── Middleware ───────────────────────────────────────────────────────────────
+// ─── CORS ─────────────────────────────────────────────────────────────────────
 const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173,http://127.0.0.1:5173')
   .split(',')
   .map(o => o.trim());
+
 app.use(cors({ origin: corsOrigins, credentials: true }));
 app.use(express.json({ limit: '50mb' }));
 
+// ─── Socket.IO ────────────────────────────────────────────────────────────────
+const io = new SocketIO(httpServer, {
+  cors: { origin: corsOrigins, credentials: true },
+  transports: ['websocket', 'polling'],
+});
+
+// Authenticate socket connections
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) return next(new Error('Authentication required'));
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    socket.userId = decoded.id;
+    next();
+  } catch {
+    next(new Error('Invalid token'));
+  }
+});
+
+io.on('connection', (socket) => {
+  // Join user-specific room for targeted updates
+  socket.join(`user:${socket.userId}`);
+  console.log(`🔌 Socket connected: user ${socket.userId}`);
+
+  socket.on('disconnect', () => {
+    console.log(`🔌 Socket disconnected: user ${socket.userId}`);
+  });
+});
+
+// Make io accessible to routes
+app.set('io', io);
+
 // ─── Rate Limiting ────────────────────────────────────────────────────────────
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 15, // max 15 attempts per window
+  windowMs: 15 * 60 * 1000,
+  max: 15,
   message: { message: 'Too many attempts. Please try again in 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
 const apiLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 100, // 100 requests per minute
+  windowMs: 1 * 60 * 1000,
+  max: 100,
   message: { message: 'Too many requests. Please slow down.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -35,6 +75,8 @@ const apiLimiter = rateLimit({
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/datasets', apiLimiter, datasetRoutes);
+app.use('/api/analysis', apiLimiter, analysisRoutes);
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -68,8 +110,18 @@ async function start() {
     process.exit(1);
   }
 
-  app.listen(PORT, () => {
+  // Initialize job queue (requires Redis — graceful fallback if unavailable)
+  try {
+    const { initJobQueue } = await import('./services/jobQueue.js');
+    initJobQueue(io);
+  } catch (err) {
+    console.warn('⚠️  Job queue not available (Redis may not be running):', err.message);
+    console.log('   Dataset processing will fall back to synchronous mode.');
+  }
+
+  httpServer.listen(PORT, () => {
     console.log(`🚀 Obsidian Analytics API running on http://localhost:${PORT}`);
+    console.log(`🔌 WebSocket server ready`);
   });
 }
 

@@ -1,0 +1,16 @@
+Ticket_ID,Created_Date,Channel,Issue_Type,Priority,Resolution_Time_Hours,CSAT_Score,Agent,Reopened
+TCK001,2024-04-01,Email,Login,Low,2.5,4.8,Aman,No
+TCK002,01/04/2024,Chat,Payment,High,6.2,3.9,Neha,Yes
+TCK003,April 2 2024,Phone,Technical,Medium,8.5,4.1,Ravi,No
+TCK004,2024/04/03,Email,Account,Low,1.8,4.9,Aman,No
+TCK005,04-04-2024,Chat,Technical,High,36,2.1,Simran,Yes
+TCK006,2024-04-05,Phone,Payment,Medium,7.2,4.0,Ravi,No
+TCK007,05/04/2024,Email,Login,Low,2.1,4.7,Neha,No
+TCK008,2024.04.06,Chat,Account,Medium,5.4,4.3,Aman,No
+TCK009,April 7 2024,Phone,Technical,Critical,72,1.8,Simran,Yes
+TCK010,08-04-2024,Email,Payment,High,10.5,3.6,Ravi,Yes
+TCK011,2024-04-09,Chat,Login,Low,N/A,missing,Neha,No
+TCK012,09/04/2024,Phone,Account,Medium,4.8,4.2,Aman,No
+TCK013,2024/04/10,Email,Technical,High,18.4,3.0,Simran,Yes
+TCK014,April 11 2024,Chat,Payment,Medium,5.9,4.1,Ravi,No
+TCK015,12-04-2024,Phone,Login,Low,2.9,4.6,Neha,No

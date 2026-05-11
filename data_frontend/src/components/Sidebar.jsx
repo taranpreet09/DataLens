@@ -52,6 +52,16 @@ export default function Sidebar({ isOpen, onClose }) {
               <span className="material-symbols-outlined">insights</span>
               Visualizer
             </NavLink>
+            <NavLink to="/statistical-tests" onClick={handleNavClick}
+              className={({ isActive }) => (isActive ? activeLinkClasses : inactiveLinkClasses)}>
+              <span className="material-symbols-outlined">science</span>
+              Statistical Tests
+            </NavLink>
+            <NavLink to="/data-quality" onClick={handleNavClick}
+              className={({ isActive }) => (isActive ? activeLinkClasses : inactiveLinkClasses)}>
+              <span className="material-symbols-outlined">verified</span>
+              Data Quality
+            </NavLink>
             <NavLink to="/reports" onClick={handleNavClick}
               className={({ isActive }) => (isActive ? activeLinkClasses : inactiveLinkClasses)}>
               <span className="material-symbols-outlined">description</span>

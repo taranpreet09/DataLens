@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # MongoDB
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+
+  # Redis (for job queue + caching)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  # Node.js Backend
+  backend:
+    build: ./data_backend
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - MONGO_URI=mongodb://mongo:27017/datalens
+      - REDIS_URL=redis://redis:6379
+      - PYTHON_SERVICE_URL=http://python:8000
+      - CORS_ORIGIN=http://localhost:5173,http://127.0.0.1:5173
+    depends_on:
+      - mongo
+      - redis
+    volumes:
+      - backend_storage:/app/storage
+    restart: unless-stopped
+
+  # Python Analytics Service
+  python:
+    build: ./python_service
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
+  backend_storage:
