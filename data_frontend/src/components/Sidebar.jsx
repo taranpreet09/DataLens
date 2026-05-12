@@ -72,6 +72,11 @@ export default function Sidebar({ isOpen, onClose }) {
               <span className="material-symbols-outlined">auto_awesome</span>
               AI Insights
             </NavLink>
+            <NavLink to="/analysis-playground" onClick={handleNavClick}
+              className={({ isActive }) => (isActive ? activeLinkClasses : inactiveLinkClasses)}>
+              <span className="material-symbols-outlined">psychology</span>
+              Analysis Lab
+            </NavLink>
           </nav>
         </div>
         <div className="mt-auto p-6 space-y-2">

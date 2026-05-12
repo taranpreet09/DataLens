@@ -9,6 +9,7 @@ import jwt from 'jsonwebtoken';
 import authRoutes from './routes/auth.js';
 import datasetRoutes from './routes/datasets.js';
 import analysisRoutes from './routes/analysis.js';
+import phase3Routes from './routes/phase3.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -76,6 +77,7 @@ const apiLimiter = rateLimit({
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/datasets', apiLimiter, datasetRoutes);
 app.use('/api/analysis', apiLimiter, analysisRoutes);
+app.use('/api/phase3', apiLimiter, phase3Routes);
 
 // Health check
 app.get('/api/health', (req, res) => {

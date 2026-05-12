@@ -10,6 +10,7 @@ import Home from './pages/Home'
 import AIInsights from './pages/Aiinsights'
 import StatisticalTests from './pages/StatisticalTests'
 import DataQuality from './pages/DataQuality'
+import AnalysisPlayground from './pages/AnalysisPlayground'
 import { DatasetProvider } from './context/DatasetContext'
 import { AuthProvider } from './context/AuthContext'
 import Login from './pages/auth/Login'
@@ -43,6 +44,7 @@ function App() {
                 <Route path="data-quality" element={<ErrorBoundary><DataQuality /></ErrorBoundary>} />
                 <Route path="reports" element={<ErrorBoundary><Reports /></ErrorBoundary>} />
                 <Route path="ai-insights" element={<ErrorBoundary><AIInsights /></ErrorBoundary>} />
+                <Route path="analysis-playground" element={<ErrorBoundary><AnalysisPlayground /></ErrorBoundary>} />
               </Route>
             </Routes>
           </AnimatePresence>

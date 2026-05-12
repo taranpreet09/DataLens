@@ -4,7 +4,9 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -24,5 +26,8 @@
     "socket.io": "^4.8.3",
     "uuid": "^14.0.0",
     "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.6"
   }
 }

@@ -252,6 +252,155 @@ def feature_importance(req: AnalysisRequest):
         raise HTTPException(500, str(e))
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# Phase 3: Cross-Validation Baselines
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class RegressionRequest(BaseModel):
+    x: list[float]
+    y: list[float]
+    degree: int = 1
+
+
+class KMeansRequest(BaseModel):
+    data: list[list[float]]
+    k: int = 3
+
+
+class IsolationForestRequest(BaseModel):
+    data: list[list[float]]
+    contamination: float = 0.1
+
+
+class ForecastRequest(BaseModel):
+    series: list[float]
+    season_length: int = 12
+    forecast_periods: int = 12
+
+
+@app.post("/validate/regression")
+def validate_regression(req: RegressionRequest):
+    """Cross-validate regression results against scikit-learn / numpy."""
+    try:
+        x = np.array(req.x).reshape(-1, 1)
+        y = np.array(req.y)
+
+        if req.degree == 1:
+            from sklearn.linear_model import LinearRegression
+            model = LinearRegression()
+            model.fit(x, y)
+            predictions = model.predict(x)
+            r_squared = float(model.score(x, y))
+            rmse = float(np.sqrt(np.mean((y - predictions) ** 2)))
+            return {
+                "slope": float(model.coef_[0]),
+                "intercept": float(model.intercept_),
+                "r_squared": r_squared,
+                "rmse": rmse,
+            }
+        else:
+            from sklearn.preprocessing import PolynomialFeatures
+            from sklearn.linear_model import LinearRegression
+            poly = PolynomialFeatures(degree=req.degree)
+            x_poly = poly.fit_transform(x)
+            model = LinearRegression()
+            model.fit(x_poly, y)
+            predictions = model.predict(x_poly)
+            r_squared = float(model.score(x_poly, y))
+            rmse = float(np.sqrt(np.mean((y - predictions) ** 2)))
+            return {
+                "coefficients": model.coef_.tolist(),
+                "intercept": float(model.intercept_),
+                "r_squared": r_squared,
+                "rmse": rmse,
+                "degree": req.degree,
+            }
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.post("/validate/kmeans")
+def validate_kmeans(req: KMeansRequest):
+    """Cross-validate K-Means results against scikit-learn."""
+    try:
+        from sklearn.cluster import KMeans
+        from sklearn.preprocessing import StandardScaler
+
+        data = np.array(req.data)
+        scaler = StandardScaler()
+        scaled = scaler.fit_transform(data)
+
+        model = KMeans(n_clusters=req.k, random_state=42, n_init=10)
+        labels = model.fit_predict(scaled)
+
+        return {
+            "labels": labels.tolist(),
+            "centroids": model.cluster_centers_.tolist(),
+            "inertia": float(model.inertia_),
+            "n_iter": int(model.n_iter_),
+        }
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.post("/validate/isolation-forest")
+def validate_isolation_forest(req: IsolationForestRequest):
+    """Cross-validate Isolation Forest against scikit-learn."""
+    try:
+        from sklearn.ensemble import IsolationForest
+        from sklearn.preprocessing import StandardScaler
+
+        data = np.array(req.data)
+        scaler = StandardScaler()
+        scaled = scaler.fit_transform(data)
+
+        model = IsolationForest(
+            contamination=req.contamination,
+            random_state=42,
+            n_estimators=100,
+        )
+        labels = model.fit_predict(scaled)
+        scores = model.decision_function(scaled)
+
+        anomaly_indices = np.where(labels == -1)[0].tolist()
+
+        return {
+            "labels": labels.tolist(),
+            "scores": scores.tolist(),
+            "n_anomalies": len(anomaly_indices),
+            "anomaly_indices": anomaly_indices,
+        }
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.post("/validate/forecast")
+def validate_forecast(req: ForecastRequest):
+    """Cross-validate Holt-Winters against statsmodels."""
+    try:
+        from statsmodels.tsa.holtwinters import ExponentialSmoothing
+
+        series = np.array(req.series)
+        model = ExponentialSmoothing(
+            series,
+            seasonal_periods=req.season_length,
+            trend="add",
+            seasonal="mul",
+        ).fit()
+
+        forecast = model.forecast(req.forecast_periods)
+
+        return {
+            "fitted": model.fittedvalues.tolist(),
+            "forecast": forecast.tolist(),
+            "aic": float(model.aic),
+            "bic": float(model.bic),
+        }
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

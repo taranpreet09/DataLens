@@ -64,6 +64,28 @@ export const analysisApi = {
   featureImportance: (datasetId, body) => request(`/api/analysis/${datasetId}/ml/feature-importance`, { method: 'POST', body }),
 };
 
+// ─── Phase 3: Analysis Engine API ─────────────────────────────────────────────
+
+export const phase3Api = {
+  // K-Means Clustering
+  kMeans: (datasetId, body) => request(`/api/phase3/${datasetId}/kmeans`, { method: 'POST', body }),
+
+  // Regression
+  regression: (datasetId, body) => request(`/api/phase3/${datasetId}/regression`, { method: 'POST', body }),
+
+  // Decision Tree Feature Importance
+  featureImportance: (datasetId, body) => request(`/api/phase3/${datasetId}/feature-importance`, { method: 'POST', body }),
+
+  // Isolation Forest Anomaly Detection
+  anomalyDetection: (datasetId, body) => request(`/api/phase3/${datasetId}/anomaly-detection`, { method: 'POST', body }),
+
+  // Holt-Winters Forecasting
+  forecast: (datasetId, body) => request(`/api/phase3/${datasetId}/forecast`, { method: 'POST', body }),
+
+  // FFT Seasonality Detection
+  fft: (datasetId, body) => request(`/api/phase3/${datasetId}/fft`, { method: 'POST', body }),
+};
+
 // ─── Datasets API ─────────────────────────────────────────────────────────────
 
 export const datasetsApi = {
