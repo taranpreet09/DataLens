@@ -37,45 +37,33 @@ export default function Sidebar({ isOpen, onClose }) {
             Upload Data
           </button>
           <nav className="flex flex-col space-y-2">
+            <div className="px-4 pt-2 pb-1 text-[10px] uppercase tracking-widest text-on-surface-variant/60 font-bold">
+              Library
+            </div>
             <NavLink to="/dashboard" onClick={handleNavClick}
               className={({ isActive }) => (isActive ? activeLinkClasses : inactiveLinkClasses)}>
-              <span className="material-symbols-outlined">dashboard</span>
-              Dashboard
+              <span className="material-symbols-outlined">folder</span>
+              Datasets
             </NavLink>
-            <NavLink to="/data-explorer" onClick={handleNavClick}
-              className={({ isActive }) => (isActive ? activeLinkClasses : inactiveLinkClasses)}>
-              <span className="material-symbols-outlined">table_chart</span>
-              Data Explorer
-            </NavLink>
-            <NavLink to="/visualizer" onClick={handleNavClick}
-              className={({ isActive }) => (isActive ? activeLinkClasses : inactiveLinkClasses)}>
-              <span className="material-symbols-outlined">insights</span>
-              Visualizer
-            </NavLink>
-            <NavLink to="/statistical-tests" onClick={handleNavClick}
-              className={({ isActive }) => (isActive ? activeLinkClasses : inactiveLinkClasses)}>
-              <span className="material-symbols-outlined">science</span>
-              Statistical Tests
-            </NavLink>
-            <NavLink to="/data-quality" onClick={handleNavClick}
-              className={({ isActive }) => (isActive ? activeLinkClasses : inactiveLinkClasses)}>
-              <span className="material-symbols-outlined">verified</span>
-              Data Quality
-            </NavLink>
-            <NavLink to="/reports" onClick={handleNavClick}
-              className={({ isActive }) => (isActive ? activeLinkClasses : inactiveLinkClasses)}>
-              <span className="material-symbols-outlined">description</span>
-              Reports
+
+            <div className="px-4 pt-4 pb-1 text-[10px] uppercase tracking-widest text-on-surface-variant/60 font-bold">
+              Work
+            </div>
+            <NavLink to="/workspace" onClick={handleNavClick}
+              className={({ isActive }) => (isActive ? activeLinkClasses : inactiveLinkClasses)}
+              end={false}>
+              <span className="material-symbols-outlined">workspaces</span>
+              Workspace
             </NavLink>
             <NavLink to="/ai-insights" onClick={handleNavClick}
               className={({ isActive }) => (isActive ? activeLinkClasses : inactiveLinkClasses)}>
               <span className="material-symbols-outlined">auto_awesome</span>
               AI Insights
             </NavLink>
-            <NavLink to="/analysis-playground" onClick={handleNavClick}
+            <NavLink to="/reports" onClick={handleNavClick}
               className={({ isActive }) => (isActive ? activeLinkClasses : inactiveLinkClasses)}>
-              <span className="material-symbols-outlined">psychology</span>
-              Analysis Lab
+              <span className="material-symbols-outlined">description</span>
+              Reports
             </NavLink>
           </nav>
         </div>

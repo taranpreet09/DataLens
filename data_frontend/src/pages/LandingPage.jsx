@@ -41,13 +41,13 @@ export default function LandingPage() {
         setUploadError(err.message || 'Upload failed.');
       }
     }
-    if (lastUploadedId) { setActive(lastUploadedId); navigate('/visualizer'); }
+    if (lastUploadedId) { setActive(lastUploadedId); navigate('/workspace?tab=visualize'); }
   }, [isAuthenticated, uploadDataset, navigate, setActive]);
 
   const onDrop = useCallback((e) => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }, [handleFiles]);
   const onDragOver = (e) => { e.preventDefault(); setDragOver(true); };
   const onDragLeave = () => setDragOver(false);
-  const handleExplore = (id) => { setActive(id); navigate('/visualizer'); };
+  const handleExplore = (id) => { setActive(id); navigate('/workspace?tab=explore'); };
 
   // Get first ready dataset stats for dashboard overview
   const activeDs = datasets.find(d => d.status === 'ready');
@@ -151,7 +151,7 @@ export default function LandingPage() {
                 <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest">{datasets.length} loaded</span>
               )}
             </div>
-            <button onClick={() => navigate('/data-explorer')} className="text-sm text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 cursor-pointer">
+            <button onClick={() => navigate('/dashboard')} className="text-sm text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 cursor-pointer">
               View All <span className="material-symbols-outlined text-sm">chevron_right</span>
             </button>
           </div>

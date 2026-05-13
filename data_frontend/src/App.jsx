@@ -1,16 +1,12 @@
-import { Routes, Route, useLocation } from 'react-router-dom'
+import { Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
 import Layout from './components/Layout'
 import ErrorBoundary from './components/ErrorBoundary'
 import LandingPage from './pages/LandingPage'
-import DataExplorer from './pages/DataExplorer'
-import Visualizer from './pages/Visualizer'
-import Reports from './pages/Reports'
 import Home from './pages/Home'
+import Workspace from './pages/Workspace'
 import AIInsights from './pages/Aiinsights'
-import StatisticalTests from './pages/StatisticalTests'
-import DataQuality from './pages/DataQuality'
-import AnalysisPlayground from './pages/AnalysisPlayground'
+import Reports from './pages/Reports'
 import { DatasetProvider } from './context/DatasetContext'
 import { AuthProvider } from './context/AuthContext'
 import Login from './pages/auth/Login'
@@ -37,14 +33,22 @@ function App() {
                 <Route path="step3" element={<SignupStep3 />} />
               </Route>
               <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+                {/* Datasets hub — upload + library */}
                 <Route path="dashboard" element={<ErrorBoundary><LandingPage /></ErrorBoundary>} />
-                <Route path="data-explorer" element={<ErrorBoundary><DataExplorer /></ErrorBoundary>} />
-                <Route path="visualizer" element={<ErrorBoundary><Visualizer /></ErrorBoundary>} />
-                <Route path="statistical-tests" element={<ErrorBoundary><StatisticalTests /></ErrorBoundary>} />
-                <Route path="data-quality" element={<ErrorBoundary><DataQuality /></ErrorBoundary>} />
-                <Route path="reports" element={<ErrorBoundary><Reports /></ErrorBoundary>} />
+
+                {/* Single workspace surface with tabs */}
+                <Route path="workspace" element={<ErrorBoundary><Workspace /></ErrorBoundary>} />
+
+                {/* Dataset-scoped but standalone (different interaction models) */}
                 <Route path="ai-insights" element={<ErrorBoundary><AIInsights /></ErrorBoundary>} />
-                <Route path="analysis-playground" element={<ErrorBoundary><AnalysisPlayground /></ErrorBoundary>} />
+                <Route path="reports"     element={<ErrorBoundary><Reports /></ErrorBoundary>} />
+
+                {/* Back-compat: old per-feature routes redirect into the workspace tab */}
+                <Route path="data-explorer"       element={<Navigate to="/workspace?tab=explore"   replace />} />
+                <Route path="data-quality"        element={<Navigate to="/workspace?tab=quality"   replace />} />
+                <Route path="visualizer"          element={<Navigate to="/workspace?tab=visualize" replace />} />
+                <Route path="statistical-tests"   element={<Navigate to="/workspace?tab=tests"     replace />} />
+                <Route path="analysis-playground" element={<Navigate to="/workspace?tab=lab"       replace />} />
               </Route>
             </Routes>
           </AnimatePresence>
