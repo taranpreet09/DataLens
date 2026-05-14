@@ -7,6 +7,8 @@ import Home from './pages/Home'
 import Workspace from './pages/Workspace'
 import AIInsights from './pages/Aiinsights'
 import Reports from './pages/Reports'
+import SharedReport from './pages/SharedReport'
+import DatasetComparison from './pages/DatasetComparison'
 import { DatasetProvider } from './context/DatasetContext'
 import { AuthProvider } from './context/AuthContext'
 import Login from './pages/auth/Login'
@@ -27,6 +29,7 @@ function App() {
             <Routes location={location} key={location.pathname.split('/')[1] || '/'}>
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/shared/:token" element={<SharedReport />} />
               <Route path="/signup" element={<SignupLayout />}>
                 <Route index element={<SignupStep1 />} />
                 <Route path="step2" element={<SignupStep2 />} />
@@ -42,6 +45,7 @@ function App() {
                 {/* Dataset-scoped but standalone (different interaction models) */}
                 <Route path="ai-insights" element={<ErrorBoundary><AIInsights /></ErrorBoundary>} />
                 <Route path="reports"     element={<ErrorBoundary><Reports /></ErrorBoundary>} />
+                <Route path="compare"     element={<ErrorBoundary><DatasetComparison /></ErrorBoundary>} />
 
                 {/* Back-compat: old per-feature routes redirect into the workspace tab */}
                 <Route path="data-explorer"       element={<Navigate to="/workspace?tab=explore"   replace />} />

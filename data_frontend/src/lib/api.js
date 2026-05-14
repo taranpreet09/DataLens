@@ -64,26 +64,51 @@ export const analysisApi = {
   featureImportance: (datasetId, body) => request(`/api/analysis/${datasetId}/ml/feature-importance`, { method: 'POST', body }),
 };
 
-// ─── Phase 3: Analysis Engine API ─────────────────────────────────────────────
+// ─── Analysis Engine API ──────────────────────────────────────────────────────
 
-export const phase3Api = {
+export const analysisEngineApi = {
   // K-Means Clustering
-  kMeans: (datasetId, body) => request(`/api/phase3/${datasetId}/kmeans`, { method: 'POST', body }),
+  kMeans: (datasetId, body) => request(`/api/analysis-engine/${datasetId}/kmeans`, { method: 'POST', body }),
 
   // Regression
-  regression: (datasetId, body) => request(`/api/phase3/${datasetId}/regression`, { method: 'POST', body }),
+  regression: (datasetId, body) => request(`/api/analysis-engine/${datasetId}/regression`, { method: 'POST', body }),
 
   // Decision Tree Feature Importance
-  featureImportance: (datasetId, body) => request(`/api/phase3/${datasetId}/feature-importance`, { method: 'POST', body }),
+  featureImportance: (datasetId, body) => request(`/api/analysis-engine/${datasetId}/feature-importance`, { method: 'POST', body }),
 
   // Isolation Forest Anomaly Detection
-  anomalyDetection: (datasetId, body) => request(`/api/phase3/${datasetId}/anomaly-detection`, { method: 'POST', body }),
+  anomalyDetection: (datasetId, body) => request(`/api/analysis-engine/${datasetId}/anomaly-detection`, { method: 'POST', body }),
 
   // Holt-Winters Forecasting
-  forecast: (datasetId, body) => request(`/api/phase3/${datasetId}/forecast`, { method: 'POST', body }),
+  forecast: (datasetId, body) => request(`/api/analysis-engine/${datasetId}/forecast`, { method: 'POST', body }),
 
   // FFT Seasonality Detection
-  fft: (datasetId, body) => request(`/api/phase3/${datasetId}/fft`, { method: 'POST', body }),
+  fft: (datasetId, body) => request(`/api/analysis-engine/${datasetId}/fft`, { method: 'POST', body }),
+};
+
+// ─── Advanced ML (Python) API ─────────────────────────────────────────────────
+
+export const advancedMlApi = {
+  // SHAP Explanations
+  shap: (datasetId, body) => request(`/api/advanced-ml/${datasetId}/shap`, { method: 'POST', body }),
+
+  // Auto-ML Pipeline (FLAML)
+  automl: (datasetId, body) => request(`/api/advanced-ml/${datasetId}/automl`, { method: 'POST', body }),
+
+  // Prophet Forecasting
+  prophet: (datasetId, body) => request(`/api/advanced-ml/${datasetId}/prophet`, { method: 'POST', body }),
+
+  // DBSCAN Clustering
+  dbscan: (datasetId, body) => request(`/api/advanced-ml/${datasetId}/dbscan`, { method: 'POST', body }),
+
+  // PCA / Dimensionality Reduction
+  pca: (datasetId, body) => request(`/api/advanced-ml/${datasetId}/pca`, { method: 'POST', body }),
+
+  // XGBoost / LightGBM Feature Importance
+  xgbImportance: (datasetId, body) => request(`/api/advanced-ml/${datasetId}/xgb-importance`, { method: 'POST', body }),
+
+  // Cross-Correlation with Lag Detection
+  crossCorrelation: (datasetId, body) => request(`/api/advanced-ml/${datasetId}/cross-correlation`, { method: 'POST', body }),
 };
 
 // ─── Datasets API ─────────────────────────────────────────────────────────────
@@ -98,4 +123,54 @@ export const datasetsApi = {
     return request('/api/datasets/upload', { method: 'POST', body: formData });
   },
   delete: (id) => request(`/api/datasets/${id}`, { method: 'DELETE' }),
+};
+
+// ─── Collaboration API ────────────────────────────────────────────────────────
+
+export const collaborationApi = {
+  // Shareable report links
+  createShareLink: (datasetId) => request(`/api/collaboration/${datasetId}/share`, { method: 'POST' }),
+  revokeShareLink: (datasetId) => request(`/api/collaboration/${datasetId}/share`, { method: 'DELETE' }),
+  getSharedReport: (token) => request(`/api/collaboration/shared/${token}`),
+
+  // Export to Excel
+  exportExcel: (datasetId, body = {}) => request(`/api/collaboration/${datasetId}/export-excel`, { method: 'POST', body }),
+
+  // Dataset comparison
+  compare: (datasetId, compareToId) => request(`/api/collaboration/${datasetId}/compare`, { method: 'POST', body: { compareToId } }),
+};
+
+// ─── Intelligence Layer API ───────────────────────────────────────────────────
+
+export const intelligenceApi = {
+  /** Health probe — returns { bedrock, python, model } */
+  health: () => request('/api/intelligence/health'),
+
+  /** Natural language query → AnalysisIntent + result + narrative */
+  nlQuery: (datasetId, question) =>
+    request(`/api/intelligence/${datasetId}/nl-query`, {
+      method: 'POST',
+      body: { question },
+    }),
+
+  /** Generate (or return cached) multi-section markdown narrative */
+  narrative: (datasetId, body = {}) =>
+    request(`/api/intelligence/${datasetId}/narrative`, {
+      method: 'POST',
+      body,
+    }),
+
+  /** Text column NLP — sentiment, topics, keywords */
+  nlpText: (datasetId, body) =>
+    request(`/api/intelligence/${datasetId}/nlp/text`, {
+      method: 'POST',
+      body,
+    }),
+
+  /** Generate an automated EDA report (may take up to 90 s) */
+  edaGenerate: (datasetId) =>
+    request(`/api/intelligence/${datasetId}/eda`, { method: 'POST' }),
+
+  /** Fetch a previously generated EDA report */
+  edaGet: (datasetId) => request(`/api/intelligence/${datasetId}/eda`),
 };

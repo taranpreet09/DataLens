@@ -65,6 +65,11 @@ export default function Sidebar({ isOpen, onClose }) {
               <span className="material-symbols-outlined">description</span>
               Reports
             </NavLink>
+            <NavLink to="/compare" onClick={handleNavClick}
+              className={({ isActive }) => (isActive ? activeLinkClasses : inactiveLinkClasses)}>
+              <span className="material-symbols-outlined">compare_arrows</span>
+              Compare
+            </NavLink>
           </nav>
         </div>
         <div className="mt-auto p-6 space-y-2">

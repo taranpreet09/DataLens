@@ -5,6 +5,10 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Download NLTK VADER lexicon for Intelligence Layer NLP
+# Local dev: python -m nltk.downloader vader_lexicon
+RUN python -m nltk.downloader vader_lexicon
+
 COPY . .
 
 EXPOSE 8000

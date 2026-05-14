@@ -1,23 +1,51 @@
 version: '3.8'
 
 services:
-  # MongoDB
+  # ─── MongoDB ───────────────────────────────────────────────────────────────────
   mongo:
     image: mongo:7
     ports:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
 
-  # Redis (for job queue + caching)
+  # ─── Redis (job queue + caching) ───────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
-  # Node.js Backend
+  # ─── Python Analytics Service (Phase 3-6: ML, SHAP, Prophet, NLP) ──────────────
+  python:
+    build: ./python_service
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  # ─── Node.js Backend API ───────────────────────────────────────────────────────
   backend:
     build: ./data_backend
     ports:
@@ -25,23 +53,52 @@ services:
     environment:
       - PORT=5000
       - MONGO_URI=mongodb://mongo:27017/datalens
+      - JWT_SECRET=${JWT_SECRET:-a3f8b2c1d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0}
       - REDIS_URL=redis://redis:6379
       - PYTHON_SERVICE_URL=http://python:8000
-      - CORS_ORIGIN=http://localhost:5173,http://127.0.0.1:5173
+      - CORS_ORIGIN=http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://frontend:4173
+      - STORAGE_PATH=/app/storage
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      # Intelligence Layer (Phase 5)
+      - INTELLIGENCE_LAYER_ENABLED=${INTELLIGENCE_LAYER_ENABLED:-true}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-anthropic.claude-sonnet-4-20250514-v1:0}
+      - BEDROCK_TOKEN_BUDGET=${BEDROCK_TOKEN_BUDGET:-12000}
+      - BEDROCK_TIMEOUT_MS=${BEDROCK_TIMEOUT_MS:-60000}
     depends_on:
-      - mongo
-      - redis
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      python:
+        condition: service_started
     volumes:
       - backend_storage:/app/storage
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
 
-  # Python Analytics Service
-  python:
-    build: ./python_service
+  # ─── React Frontend (Vite preview server) ──────────────────────────────────────
+  frontend:
+    build:
+      context: ./data_frontend
+      dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "5173:4173"
+    environment:
+      - VITE_API_URL=http://localhost:5000
+    depends_on:
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
   mongo_data:
+  redis_data:
   backend_storage:

@@ -96,3 +96,165 @@ export async function featureImportance(headers, rows, targetColumn) {
     target_column: targetColumn,
   });
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Advanced ML
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * SHAP explanations for predictions and outlier detection.
+ */
+export async function shapExplanations(headers, rows, options = {}) {
+  return callPython('/phase4/shap', {
+    headers,
+    rows,
+    target_column: options.targetColumn,
+    task_type: options.taskType || null,
+    max_samples: options.maxSamples || 500,
+  });
+}
+
+/**
+ * Auto-ML pipeline using FLAML.
+ */
+export async function autoML(headers, rows, options = {}) {
+  return callPython('/phase4/automl', {
+    headers,
+    rows,
+    target_column: options.targetColumn,
+    task_type: options.taskType || null,
+    time_budget: options.timeBudget || 60,
+    metric: options.metric || null,
+  });
+}
+
+/**
+ * Prophet forecasting with holidays and changepoints.
+ */
+export async function prophetForecast(headers, rows, options = {}) {
+  return callPython('/phase4/prophet', {
+    headers,
+    rows,
+    date_column: options.dateColumn,
+    value_column: options.valueColumn,
+    forecast_periods: options.forecastPeriods || 30,
+    include_holidays: options.includeHolidays !== false,
+    country: options.country || 'US',
+    changepoint_prior_scale: options.changepointPriorScale || 0.05,
+    seasonality_mode: options.seasonalityMode || 'additive',
+  });
+}
+
+/**
+ * DBSCAN density-based clustering.
+ */
+export async function dbscanClustering(headers, rows, options = {}) {
+  return callPython('/phase4/dbscan', {
+    headers,
+    rows,
+    columns: options.columns || null,
+    eps: options.eps || null,
+    min_samples: options.minSamples || 5,
+    metric: options.metric || 'euclidean',
+  });
+}
+
+/**
+ * Full PCA with scree plot, biplot, and loadings.
+ */
+export async function pcaFull(headers, rows, options = {}) {
+  return callPython('/phase4/pca', {
+    headers,
+    rows,
+    columns: options.columns || null,
+    n_components: options.nComponents || null,
+    include_biplot: options.includeBiplot !== false,
+  });
+}
+
+/**
+ * XGBoost / LightGBM feature importance.
+ */
+export async function xgbImportance(headers, rows, options = {}) {
+  return callPython('/phase4/xgb-importance', {
+    headers,
+    rows,
+    target_column: options.targetColumn,
+    model: options.model || 'xgboost',
+    task_type: options.taskType || null,
+    n_estimators: options.nEstimators || 100,
+    max_depth: options.maxDepth || 6,
+  });
+}
+
+/**
+ * Cross-correlation with lag detection.
+ */
+export async function crossCorrelation(headers, rows, options = {}) {
+  return callPython('/phase4/cross-correlation', {
+    headers,
+    rows,
+    column_a: options.columnA,
+    column_b: options.columnB,
+    max_lag: options.maxLag || 50,
+    normalize: options.normalize !== false,
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Intelligence Layer proxies
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Text column NLP — sentiment, topics, keywords.
+ * Proxies to POST /intelligence/nlp/analyze on the Python service.
+ *
+ * Maps ECONNREFUSED to a structured PYTHON_UNAVAILABLE error so the
+ * intelligence route can return the correct error envelope.
+ */
+export async function nlpText(headers, rows, column, options = {}) {
+  try {
+    return await callPython('/intelligence/nlp/analyze', {
+      headers,
+      rows,
+      column,
+      options,
+    });
+  } catch (err) {
+    if (
+      err.cause?.code === 'ECONNREFUSED' ||
+      err.message?.includes('not running')
+    ) {
+      const e = new Error('Python analytics service is unavailable');
+      e.code = 'PYTHON_UNAVAILABLE';
+      e.retryable = true;
+      throw e;
+    }
+    throw err;
+  }
+}
+
+/**
+ * Automated EDA report — ydata-profiling + optional plots.
+ * Proxies to POST /intelligence/eda/profile on the Python service.
+ */
+export async function edaProfile(headers, rows, options = {}) {
+  try {
+    return await callPython('/intelligence/eda/profile', {
+      headers,
+      rows,
+      options,
+    });
+  } catch (err) {
+    if (
+      err.cause?.code === 'ECONNREFUSED' ||
+      err.message?.includes('not running')
+    ) {
+      const e = new Error('Python analytics service is unavailable');
+      e.code = 'PYTHON_UNAVAILABLE';
+      e.retryable = true;
+      throw e;
+    }
+    throw err;
+  }
+}

@@ -1,6 +1,6 @@
 /**
- * Phase 3 — Analysis Engine Routes
- * K-Means, Regression, Decision Trees, Isolation Forest, Holt-Winters, FFT
+ * Advanced ML Routes (Python-backed)
+ * SHAP, Auto-ML (FLAML), Prophet, DBSCAN, PCA, XGBoost/LightGBM, Cross-Correlation
  */
 
 import { Router } from 'express';
@@ -8,13 +8,15 @@ import authMiddleware from '../middleware/auth.js';
 import Dataset from '../models/Dataset.js';
 import { readAllRows, stratifiedSample } from '../services/fileParser.js';
 import {
-  kMeansAnalysis,
-  regressionAnalysis,
-  decisionTreeImportance,
-  isolationForestAnalysis,
-  holtWintersAnalysis,
-  fftAnalysis,
-} from '../services/analysisEngine.js';
+  isPythonAvailable,
+  shapExplanations,
+  autoML,
+  prophetForecast,
+  dbscanClustering,
+  pcaFull,
+  xgbImportance,
+  crossCorrelation,
+} from '../services/pythonBridge.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -32,131 +34,39 @@ async function getDatasetRows(dataset, maxRows = 50000) {
   return [];
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// K-MEANS CLUSTERING
-// ═══════════════════════════════════════════════════════════════════════════════
-
-router.post('/:id/kmeans', async (req, res) => {
-  try {
-    const dataset = await Dataset.findOne({ _id: req.params.id, userId: req.userId });
-    if (!dataset) return res.status(404).json({ message: 'Dataset not found.' });
-
-    const rows = await getDatasetRows(dataset, 50000);
-    const { columns, k, autoSelect, maxK } = req.body;
-
-    const t0 = performance.now();
-    const result = kMeansAnalysis(dataset.headers, rows, { columns, k, autoSelect, maxK });
-    const executionTime = Math.round(performance.now() - t0);
-
-    res.json({ ...result, executionTime });
-  } catch (err) {
-    res.status(400).json({ message: err.message });
+// ─── Middleware: Check Python service availability ────────────────────────────
+async function requirePython(req, res, next) {
+  const available = await isPythonAvailable();
+  if (!available) {
+    return res.status(503).json({
+      message: 'Python analytics service is not running.',
+      hint: 'Start it with: cd python_service && uvicorn main:app --port 8000',
+    });
   }
-});
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// REGRESSION
-// ═══════════════════════════════════════════════════════════════════════════════
-
-router.post('/:id/regression', async (req, res) => {
-  try {
-    const dataset = await Dataset.findOne({ _id: req.params.id, userId: req.userId });
-    if (!dataset) return res.status(404).json({ message: 'Dataset not found.' });
-
-    const rows = await getDatasetRows(dataset, 50000);
-    const { xColumn, yColumn, xColumns, degree, type } = req.body;
-
-    const t0 = performance.now();
-    const result = regressionAnalysis(dataset.headers, rows, { xColumn, yColumn, xColumns, degree, type });
-    const executionTime = Math.round(performance.now() - t0);
-
-    res.json({ ...result, executionTime });
-  } catch (err) {
-    res.status(400).json({ message: err.message });
-  }
-});
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// DECISION TREE FEATURE IMPORTANCE
-// ═══════════════════════════════════════════════════════════════════════════════
-
-router.post('/:id/feature-importance', async (req, res) => {
-  try {
-    const dataset = await Dataset.findOne({ _id: req.params.id, userId: req.userId });
-    if (!dataset) return res.status(404).json({ message: 'Dataset not found.' });
-
-    const rows = await getDatasetRows(dataset, 50000);
-    const { targetColumn, criterion, maxDepth, minSamples } = req.body;
-
-    const t0 = performance.now();
-    const result = decisionTreeImportance(dataset.headers, rows, { targetColumn, criterion, maxDepth, minSamples });
-    const executionTime = Math.round(performance.now() - t0);
-
-    // Don't send the full tree in response (too large) — send summary
-    const { tree, ...summary } = result;
-    res.json({ ...summary, treeDepth: getTreeDepth(tree), executionTime });
-  } catch (err) {
-    res.status(400).json({ message: err.message });
-  }
-});
-
-function getTreeDepth(node) {
-  if (!node || node.leaf) return 0;
-  return 1 + Math.max(getTreeDepth(node.left), getTreeDepth(node.right));
+  next();
 }
 
+router.use(requirePython);
+
 // ═══════════════════════════════════════════════════════════════════════════════
-// ISOLATION FOREST ANOMALY DETECTION
+// 24. SHAP EXPLANATIONS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-router.post('/:id/anomaly-detection', async (req, res) => {
+router.post('/:id/shap', async (req, res) => {
   try {
     const dataset = await Dataset.findOne({ _id: req.params.id, userId: req.userId });
     if (!dataset) return res.status(404).json({ message: 'Dataset not found.' });
 
-    const rows = await getDatasetRows(dataset, 50000);
-    const { columns, nTrees, contamination } = req.body;
+    const { targetColumn, taskType, maxSamples } = req.body;
+    if (!targetColumn) return res.status(400).json({ message: 'targetColumn is required.' });
+
+    const rows = await getDatasetRows(dataset, maxSamples || 500);
 
     const t0 = performance.now();
-    const result = isolationForestAnalysis(dataset.headers, rows, { columns, nTrees, contamination });
-    const executionTime = Math.round(performance.now() - t0);
-
-    // Don't send all scores for large datasets
-    const scoreSummary = {
-      mean: round(mean(result.scores.filter(s => s > 0))),
-      max: round(Math.max(...result.scores)),
-      min: round(Math.min(...result.scores.filter(s => s > 0))),
-    };
-
-    res.json({
-      ...result,
-      scores: result.scores.length > 5000 ? undefined : result.scores,
-      scoreSummary,
-      executionTime,
-    });
-  } catch (err) {
-    res.status(400).json({ message: err.message });
-  }
-});
-
-function mean(arr) { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0; }
-function round(n, d = 4) { const f = 10 ** d; return Math.round(n * f) / f; }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// HOLT-WINTERS FORECASTING
-// ═══════════════════════════════════════════════════════════════════════════════
-
-router.post('/:id/forecast', async (req, res) => {
-  try {
-    const dataset = await Dataset.findOne({ _id: req.params.id, userId: req.userId });
-    if (!dataset) return res.status(404).json({ message: 'Dataset not found.' });
-
-    const rows = await getDatasetRows(dataset, 100000);
-    const { valueColumn, dateColumn, seasonLength, forecastPeriods, multiplicative } = req.body;
-
-    const t0 = performance.now();
-    const result = holtWintersAnalysis(dataset.headers, rows, {
-      valueColumn, dateColumn, seasonLength, forecastPeriods, multiplicative,
+    const result = await shapExplanations(dataset.headers, rows, {
+      targetColumn,
+      taskType,
+      maxSamples: maxSamples || 500,
     });
     const executionTime = Math.round(performance.now() - t0);
 
@@ -167,19 +77,180 @@ router.post('/:id/forecast', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// FFT SEASONALITY DETECTION
+// 25. AUTO-ML PIPELINE (FLAML)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-router.post('/:id/fft', async (req, res) => {
+router.post('/:id/automl', async (req, res) => {
   try {
     const dataset = await Dataset.findOne({ _id: req.params.id, userId: req.userId });
     if (!dataset) return res.status(404).json({ message: 'Dataset not found.' });
 
-    const rows = await getDatasetRows(dataset, 100000);
-    const { valueColumn, dateColumn } = req.body;
+    const { targetColumn, taskType, timeBudget, metric } = req.body;
+    if (!targetColumn) return res.status(400).json({ message: 'targetColumn is required.' });
+
+    const rows = await getDatasetRows(dataset, 50000);
 
     const t0 = performance.now();
-    const result = fftAnalysis(dataset.headers, rows, { valueColumn, dateColumn });
+    const result = await autoML(dataset.headers, rows, {
+      targetColumn,
+      taskType,
+      timeBudget: timeBudget || 60,
+      metric,
+    });
+    const executionTime = Math.round(performance.now() - t0);
+
+    res.json({ ...result, executionTime });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 26. PROPHET FORECASTING
+// ═══════════════════════════════════════════════════════════════════════════════
+
+router.post('/:id/prophet', async (req, res) => {
+  try {
+    const dataset = await Dataset.findOne({ _id: req.params.id, userId: req.userId });
+    if (!dataset) return res.status(404).json({ message: 'Dataset not found.' });
+
+    const {
+      dateColumn, valueColumn, forecastPeriods,
+      includeHolidays, country, changepointPriorScale, seasonalityMode,
+    } = req.body;
+
+    if (!dateColumn || !valueColumn) {
+      return res.status(400).json({ message: 'dateColumn and valueColumn are required.' });
+    }
+
+    const rows = await getDatasetRows(dataset, 100000);
+
+    const t0 = performance.now();
+    const result = await prophetForecast(dataset.headers, rows, {
+      dateColumn,
+      valueColumn,
+      forecastPeriods: forecastPeriods || 30,
+      includeHolidays: includeHolidays !== false,
+      country: country || 'US',
+      changepointPriorScale: changepointPriorScale || 0.05,
+      seasonalityMode: seasonalityMode || 'additive',
+    });
+    const executionTime = Math.round(performance.now() - t0);
+
+    res.json({ ...result, executionTime });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 27. DBSCAN DENSITY-BASED CLUSTERING
+// ═══════════════════════════════════════════════════════════════════════════════
+
+router.post('/:id/dbscan', async (req, res) => {
+  try {
+    const dataset = await Dataset.findOne({ _id: req.params.id, userId: req.userId });
+    if (!dataset) return res.status(404).json({ message: 'Dataset not found.' });
+
+    const { columns, eps, minSamples, metric } = req.body;
+
+    const rows = await getDatasetRows(dataset, 50000);
+
+    const t0 = performance.now();
+    const result = await dbscanClustering(dataset.headers, rows, {
+      columns,
+      eps: eps || null,
+      minSamples: minSamples || 5,
+      metric: metric || 'euclidean',
+    });
+    const executionTime = Math.round(performance.now() - t0);
+
+    res.json({ ...result, executionTime });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 28. PCA / DIMENSIONALITY REDUCTION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+router.post('/:id/pca', async (req, res) => {
+  try {
+    const dataset = await Dataset.findOne({ _id: req.params.id, userId: req.userId });
+    if (!dataset) return res.status(404).json({ message: 'Dataset not found.' });
+
+    const { columns, nComponents, includeBiplot } = req.body;
+
+    const rows = await getDatasetRows(dataset, 50000);
+
+    const t0 = performance.now();
+    const result = await pcaFull(dataset.headers, rows, {
+      columns,
+      nComponents: nComponents || null,
+      includeBiplot: includeBiplot !== false,
+    });
+    const executionTime = Math.round(performance.now() - t0);
+
+    res.json({ ...result, executionTime });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 29. XGBOOST / LIGHTGBM FEATURE IMPORTANCE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+router.post('/:id/xgb-importance', async (req, res) => {
+  try {
+    const dataset = await Dataset.findOne({ _id: req.params.id, userId: req.userId });
+    if (!dataset) return res.status(404).json({ message: 'Dataset not found.' });
+
+    const { targetColumn, model, taskType, nEstimators, maxDepth } = req.body;
+    if (!targetColumn) return res.status(400).json({ message: 'targetColumn is required.' });
+
+    const rows = await getDatasetRows(dataset, 50000);
+
+    const t0 = performance.now();
+    const result = await xgbImportance(dataset.headers, rows, {
+      targetColumn,
+      model: model || 'xgboost',
+      taskType,
+      nEstimators: nEstimators || 100,
+      maxDepth: maxDepth || 6,
+    });
+    const executionTime = Math.round(performance.now() - t0);
+
+    res.json({ ...result, executionTime });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 30. CROSS-CORRELATION WITH LAG DETECTION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+router.post('/:id/cross-correlation', async (req, res) => {
+  try {
+    const dataset = await Dataset.findOne({ _id: req.params.id, userId: req.userId });
+    if (!dataset) return res.status(404).json({ message: 'Dataset not found.' });
+
+    const { columnA, columnB, maxLag, normalize } = req.body;
+    if (!columnA || !columnB) {
+      return res.status(400).json({ message: 'columnA and columnB are required.' });
+    }
+
+    const rows = await getDatasetRows(dataset, 100000);
+
+    const t0 = performance.now();
+    const result = await crossCorrelation(dataset.headers, rows, {
+      columnA,
+      columnB,
+      maxLag: maxLag || 50,
+      normalize: normalize !== false,
+    });
     const executionTime = Math.round(performance.now() - t0);
 
     res.json({ ...result, executionTime });

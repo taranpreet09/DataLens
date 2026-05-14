@@ -5,10 +5,20 @@ import autoTable from 'jspdf-autotable';
  * Generates a professional, text-selectable, formal business PDF Report 
  * computationally populated by the dataset stats logic natively.
  *
- * @param {Object} ds - The Obsidian Analytics activeDataset object containing .stats
+ * @param {Object} ds       - The Obsidian Analytics activeDataset object containing .stats
+ * @param {Object} options  - Optional: { includeNarrative: true, includeEda: true }
  * @param {string} filename - Output filename
  */
-export async function exportReportToPDF(ds, filename = 'Obsidian Analytics-Report.pdf') {
+export async function exportReportToPDF(ds, options = {}, filename) {
+  // Support legacy two-argument call: exportReportToPDF(ds, filename)
+  if (typeof options === 'string') {
+    filename = options;
+    options = {};
+  }
+  if (!filename) filename = 'Obsidian Analytics-Report.pdf';
+
+  const { includeNarrative = true, includeEda = true } = options;
+
   if (!ds || !ds.stats) throw new Error('Invalid dataset or missing stats data.');
   
   const stats = ds.stats;
@@ -165,6 +175,105 @@ export async function exportReportToPDF(ds, filename = 'Obsidian Analytics-Repor
     });
   }
 
+  // ─── AI Narrative page ──────────────────────────────────────────────────
+  if (includeNarrative && ds.narrative?.fullMarkdown) {
+    try {
+      pdf.addPage();
+      pdf.setFontSize(18);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text('AI Narrative', 14, 20);
+
+      pdf.setFontSize(10);
+      pdf.setTextColor(60, 60, 60);
+
+      // Strip markdown syntax for plain-text PDF rendering
+      const plainText = stripMarkdown(ds.narrative.fullMarkdown);
+      const lines = pdf.splitTextToSize(plainText, 180);
+      let y = 30;
+      for (const line of lines) {
+        if (y > 270) { pdf.addPage(); y = 20; }
+        pdf.text(line, 14, y);
+        y += 5;
+      }
+    } catch (e) {
+      console.warn('PDF: failed to render AI narrative page', e);
+    }
+  }
+
+  // ─── EDA Report page ────────────────────────────────────────────────────
+  if (includeEda && ds.edaReport) {
+    try {
+      pdf.addPage();
+      pdf.setFontSize(18);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text('EDA Report', 14, 20);
+
+      // Narrative text
+      if (ds.edaReport.fullMarkdown) {
+        pdf.setFontSize(10);
+        pdf.setTextColor(60, 60, 60);
+        const plainText = stripMarkdown(ds.edaReport.fullMarkdown);
+        const lines = pdf.splitTextToSize(plainText, 180);
+        let y = 30;
+        for (const line of lines) {
+          if (y > 270) { pdf.addPage(); y = 20; }
+          pdf.text(line, 14, y);
+          y += 5;
+        }
+      }
+
+      // Plot images
+      if (ds.edaReport.plots) {
+        for (const [key, dataUri] of Object.entries(ds.edaReport.plots)) {
+          try {
+            if (!dataUri || typeof dataUri !== 'string') continue;
+            // Extract format from data URI (default PNG)
+            const formatMatch = dataUri.match(/^data:image\/(\w+);base64,/);
+            const format = formatMatch ? formatMatch[1].toUpperCase() : 'PNG';
+            pdf.addPage();
+            pdf.setFontSize(11);
+            pdf.setTextColor(80, 80, 80);
+            pdf.text(key.replace(/_/g, ' '), 14, 14);
+            // Max width 160mm, positioned at x=14, y=20
+            pdf.addImage(dataUri, format, 14, 20, 160, 0);
+          } catch (imgErr) {
+            console.warn(`PDF: failed to add plot image "${key}"`, imgErr);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('PDF: failed to render EDA report page', e);
+    }
+  }
+
   // Final Output Execution
   pdf.save(filename);
+}
+
+/**
+ * Strip markdown syntax to produce plain text suitable for PDF rendering.
+ * Removes headings markers, bold/italic markers, code fences, links, etc.
+ */
+function stripMarkdown(md) {
+  if (!md) return '';
+  return md
+    // Remove code fences
+    .replace(/```[\s\S]*?```/g, '')
+    // Remove inline code
+    .replace(/`([^`]+)`/g, '$1')
+    // Remove headings markers
+    .replace(/^#{1,6}\s+/gm, '')
+    // Remove bold/italic
+    .replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1')
+    .replace(/_{1,3}([^_]+)_{1,3}/g, '$1')
+    // Remove links — keep text
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    // Remove blockquote markers
+    .replace(/^>\s+/gm, '')
+    // Remove list markers
+    .replace(/^[-*+]\s+/gm, '')
+    .replace(/^\d+\.\s+/gm, '')
+    // Collapse multiple blank lines
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }

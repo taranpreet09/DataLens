@@ -7,6 +7,7 @@ import DataQuality from './DataQuality';
 import Visualizer from './Visualizer';
 import StatisticalTests from './StatisticalTests';
 import AnalysisPlayground from './AnalysisPlayground';
+import DatasetComparison from './DatasetComparison';
 import QualityBadge from '../components/ui/QualityBadge';
 
 /**
@@ -23,6 +24,7 @@ const TABS = [
   { id: 'visualize', label: 'Visualize',   icon: 'insights',     component: Visualizer },
   { id: 'tests',     label: 'Tests',       icon: 'science',      component: StatisticalTests },
   { id: 'lab',       label: 'Lab',         icon: 'psychology',   component: AnalysisPlayground },
+  { id: 'compare',   label: 'Compare',     icon: 'compare_arrows', component: DatasetComparison },
 ];
 
 export default function Workspace() {
@@ -229,11 +231,11 @@ function OverviewTab({ dataset, onOpenTab }) {
             </button>
           </div>
           <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 text-xs">
-            <Stat label="Mean"   value={primary.mean?.toLocaleString()} accent />
-            <Stat label="Median" value={primary.median?.toLocaleString()} />
-            <Stat label="σ"      value={primary.stdDev?.toLocaleString()} />
-            <Stat label="Min"    value={primary.min?.toLocaleString()} />
-            <Stat label="Max"    value={primary.max?.toLocaleString()} />
+            <Stat label="Mean"   value={compactNum(primary.mean)} accent />
+            <Stat label="Median" value={compactNum(primary.median)} />
+            <Stat label="σ"      value={compactNum(primary.stdDev)} />
+            <Stat label="Min"    value={compactNum(primary.min)} />
+            <Stat label="Max"    value={compactNum(primary.max)} />
           </div>
         </section>
       )}
@@ -267,9 +269,9 @@ function OverviewTab({ dataset, onOpenTab }) {
 
 function Stat({ label, value, accent }) {
   return (
-    <div>
+    <div className="min-w-0 overflow-hidden">
       <span className="text-on-surface-variant text-[10px] uppercase tracking-widest font-bold">{label}</span>
-      <p className={`font-bold ${accent ? 'text-primary' : 'text-on-surface'}`}>{value ?? '—'}</p>
+      <p className={`font-bold truncate ${accent ? 'text-primary' : 'text-on-surface'}`} title={value ?? '—'}>{value ?? '—'}</p>
     </div>
   );
 }
@@ -279,4 +281,17 @@ function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function compactNum(n) {
+  if (n == null) return '—';
+  if (typeof n !== 'number') return String(n);
+  // Use compact notation for very large or very small numbers
+  if (Math.abs(n) >= 1_000_000) {
+    return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(n);
+  }
+  if (Math.abs(n) >= 1000) {
+    return n.toLocaleString(undefined, { maximumFractionDigits: 1 });
+  }
+  return n.toLocaleString(undefined, { maximumFractionDigits: 3 });
 }

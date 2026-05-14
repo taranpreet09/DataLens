@@ -1,5 +1,5 @@
 /**
- * Phase 3 — Analysis Engine
+ * Analysis Engine
  * Production-grade analytical algorithms for medium-sized tabular datasets.
  * Pure computation module. Zero side effects.
  *

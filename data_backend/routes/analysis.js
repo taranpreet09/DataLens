@@ -84,7 +84,7 @@ router.get('/:id/sample', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// PHASE 2: Statistical Tests & Data Quality
+// Statistical Tests & Data Quality
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // ─── POST /:id/test/ttest — Two-sample t-test ─────────────────────────────────

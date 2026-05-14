@@ -5,6 +5,10 @@ import CorrelationHeatmap from '../components/charts/CorrelationHeatmap';
 import QualityBadge from '../components/ui/QualityBadge';
 import QualityFlagChips from '../components/ui/QualityFlagChips';
 import DynamicTimeSeries from '../components/charts/DynamicTimeSeries';
+import NarrativePanel from '../components/intelligence/NarrativePanel';
+import EDAReportPanel from '../components/intelligence/EDAReportPanel';
+import SharePanel from '../components/ui/SharePanel';
+import ExcelExportButton from '../components/ui/ExcelExportButton';
 
 export default function Reports() {
   const { activeDataset, datasets, setActive } = useDataset();
@@ -18,7 +22,7 @@ export default function Reports() {
     if (isExporting || !ds) return;
     setIsExporting(true);
     try {
-      await exportReportToPDF(ds, `Obsidian Analytics-Report-${ds.name.split('.')[0]}.pdf`);
+      await exportReportToPDF(ds, { includeNarrative: true, includeEda: true }, `Obsidian Analytics-Report-${ds.name.split('.')[0]}.pdf`);
     } catch (e) {
       console.error('PDF Export Error:', e);
       alert(`Failed to generate PDF: ${e.message || String(e)}`);
@@ -52,6 +56,7 @@ export default function Reports() {
         </div>
         <div className="flex items-center gap-4">
           {stats && <QualityBadge score={stats.qualityScore} />}
+          {ds && <ExcelExportButton dataset={ds} />}
           {ds && (
             <button
               onClick={handleExport}
@@ -84,9 +89,20 @@ export default function Reports() {
         </div>
       )}
 
+      {/* Share Panel */}
+      {ds?.dbId && (
+        <SharePanel datasetId={ds.dbId} />
+      )}
+
       {ds && stats && (
         <div id="report-content" className="space-y-6 lg:space-y-8">
           
+          {/* 🤖 AI Narrative Panel */}
+          <NarrativePanel datasetId={ds.id} initialNarrative={ds.narrative} />
+
+          {/* 📊 EDA Report Panel */}
+          <EDAReportPanel datasetId={ds.id} cachedReport={ds.edaReport} />
+
           {/* 🔍 Executive Summary Panel */}
           <div className="bg-surface-container-low rounded-2xl border border-primary/20 p-6 lg:p-8 shadow-xl shadow-primary/5">
             <div className="flex items-center gap-3 mb-6">

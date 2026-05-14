@@ -1,17 +1,21 @@
 import { useState, useCallback } from 'react'
 import { useDataset } from '../context/DatasetContext'
-import { phase3Api } from '../lib/api'
+import { analysisEngineApi } from '../lib/api'
 import KMeansPanel from '../components/analysis/KMeansPanel'
 import RegressionPanel from '../components/analysis/RegressionPanel'
 import FeatureImportancePanel from '../components/analysis/FeatureImportancePanel'
 import AnomalyDetectionPanel from '../components/analysis/AnomalyDetectionPanel'
 import ForecastPanel from '../components/analysis/ForecastPanel'
 import FFTPanel from '../components/analysis/FFTPanel'
+import PredictPanel from '../components/analysis/PredictPanel'
 import DebugPanel from '../components/analysis/DebugPanel'
+import ClusterScatterPlot from '../components/charts/ClusterScatterPlot'
+import ForecastChart from '../components/charts/ForecastChart'
 
 const ALGORITHMS = [
   { id: 'kmeans', name: 'K-Means Clustering', icon: '◎', color: 'from-violet-500 to-purple-600' },
   { id: 'regression', name: 'Regression', icon: '📈', color: 'from-blue-500 to-cyan-600' },
+  { id: 'predict', name: 'Predict Builder', icon: '🎯', color: 'from-indigo-500 to-purple-600' },
   { id: 'feature-importance', name: 'Feature Importance', icon: '🌳', color: 'from-green-500 to-emerald-600' },
   { id: 'anomaly', name: 'Anomaly Detection', icon: '🔍', color: 'from-red-500 to-orange-600' },
   { id: 'forecast', name: 'Holt-Winters Forecast', icon: '📊', color: 'from-amber-500 to-yellow-600' },
@@ -42,22 +46,30 @@ export default function AnalysisPlayground() {
       let result
       switch (algoId) {
         case 'kmeans':
-          result = await phase3Api.kMeans(activeDataset.dbId, params)
+          result = await analysisEngineApi.kMeans(activeDataset.dbId, params)
           break
         case 'regression':
-          result = await phase3Api.regression(activeDataset.dbId, params)
+          result = await analysisEngineApi.regression(activeDataset.dbId, params)
           break
         case 'feature-importance':
-          result = await phase3Api.featureImportance(activeDataset.dbId, params)
+          result = await analysisEngineApi.featureImportance(activeDataset.dbId, params)
           break
         case 'anomaly':
-          result = await phase3Api.anomalyDetection(activeDataset.dbId, params)
+          result = await analysisEngineApi.anomalyDetection(activeDataset.dbId, params)
           break
         case 'forecast':
-          result = await phase3Api.forecast(activeDataset.dbId, params)
+          result = await analysisEngineApi.forecast(activeDataset.dbId, params)
           break
         case 'fft':
-          result = await phase3Api.fft(activeDataset.dbId, params)
+          result = await analysisEngineApi.fft(activeDataset.dbId, params)
+          break
+        case 'predict':
+          // Predict uses regression with multiple features
+          result = await analysisEngineApi.regression(activeDataset.dbId, {
+            yColumn: params.targetColumn,
+            xColumns: params.featureColumns,
+            type: params.modelType === 'auto' ? 'multiple' : params.modelType,
+          })
           break
         default:
           throw new Error(`Unknown algorithm: ${algoId}`)
@@ -117,7 +129,7 @@ export default function AnalysisPlayground() {
       <div className="flex-shrink-0 p-4 border-b border-white/10">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-white">Phase 3 — Analysis Playground</h1>
+            <h1 className="text-xl font-bold text-white">Analysis Playground</h1>
             <p className="text-sm text-gray-400 mt-1">
               Dataset: <span className="text-cyan-400">{activeDataset.name}</span>
               {' · '}{activeDataset.rowCount?.toLocaleString()} rows
@@ -162,6 +174,14 @@ export default function AnalysisPlayground() {
                 columns={numericColumns}
                 allColumns={allColumns}
                 onRun={(params) => runAnalysis('regression', params)}
+                loading={loading}
+              />
+            )}
+            {selectedAlgo === 'predict' && (
+              <PredictPanel
+                columns={allColumns}
+                numericColumns={numericColumns}
+                onRun={(params) => runAnalysis('predict', params)}
                 loading={loading}
               />
             )}
@@ -235,6 +255,7 @@ function ResultsView({ algorithm, results }) {
     case 'kmeans':
       return <KMeansResults results={results} />
     case 'regression':
+    case 'predict':
       return <RegressionResults results={results} />
     case 'feature-importance':
       return <FeatureImportanceResults results={results} />
@@ -250,6 +271,14 @@ function ResultsView({ algorithm, results }) {
 }
 
 function KMeansResults({ results }) {
+  // Build scatter data from assignments if available
+  const scatterData = results.assignments?.map((cluster, i) => ({
+    x: results.projectedPoints?.[i]?.[0] ?? i,
+    y: results.projectedPoints?.[i]?.[1] ?? cluster,
+    cluster,
+    rowIndex: i,
+  })) || [];
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -258,6 +287,20 @@ function KMeansResults({ results }) {
         <MetricCard label="Iterations" value={results.iterations} />
         <MetricCard label="Valid Rows" value={results.validRows?.toLocaleString()} />
       </div>
+
+      {/* Interactive Cluster Scatter Plot (#35) */}
+      {scatterData.length > 0 && (
+        <div className="bg-black/20 rounded-lg p-3 border border-white/5">
+          <ClusterScatterPlot
+            data={scatterData}
+            clusterStats={results.clusterStats}
+            xLabel={results.columnsUsed?.[0] || 'Dimension 1'}
+            yLabel={results.columnsUsed?.[1] || 'Dimension 2'}
+            showCentroids={true}
+          />
+        </div>
+      )}
+
       {results.clusterStats && (
         <div>
           <h4 className="text-sm font-medium text-gray-300 mb-2">Cluster Sizes</h4>
@@ -402,6 +445,12 @@ function AnomalyResults({ results }) {
 }
 
 function ForecastResults({ results }) {
+  // Build historical data for the chart
+  const historicalData = results.fittedValues?.map((v, i) => ({
+    label: results.dates?.[i] || `${i + 1}`,
+    value: results.originalValues?.[i] ?? v,
+  })) || [];
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -410,31 +459,32 @@ function ForecastResults({ results }) {
         <MetricCard label="Season" value={results.params?.seasonLength} />
         <MetricCard label="Forecast" value={`${results.forecast?.length} periods`} />
       </div>
+
+      {/* Forecast Chart with Confidence Bands (#36) */}
       {results.forecast && (
-        <div>
-          <h4 className="text-sm font-medium text-gray-300 mb-2">Forecast Values</h4>
-          <div className="flex gap-1 items-end h-24">
-            {results.forecast.map((v, i) => {
-              const max = Math.max(...results.forecast)
-              const min = Math.min(...results.forecast)
-              const range = max - min || 1
-              const height = ((v - min) / range) * 100
-              return (
-                <div key={i} className="flex flex-col items-center flex-1">
-                  <div
-                    className="w-full bg-amber-400/60 rounded-t"
-                    style={{ height: `${Math.max(5, height)}%` }}
-                  />
-                  <span className="text-[9px] text-gray-500 mt-1">{i + 1}</span>
-                </div>
-              )
-            })}
-          </div>
+        <div className="bg-black/20 rounded-lg p-3 border border-white/5">
+          <ForecastChart
+            historicalData={historicalData}
+            forecastData={results.forecast}
+            confidenceIntervals={results.confidenceIntervals || []}
+            fittedValues={results.fittedValues || []}
+            title="Holt-Winters Forecast"
+            valueLabel={results.params?.valueColumn || 'Value'}
+          />
         </div>
       )}
-      {results.confidenceIntervals && (
-        <div className="text-xs text-gray-400">
-          95% CI: [{results.confidenceIntervals[0]?.lower} — {results.confidenceIntervals[0]?.upper}] (period 1)
+
+      {results.confidenceIntervals && results.confidenceIntervals.length > 0 && (
+        <div className="text-xs text-gray-400 bg-black/20 rounded p-3">
+          <p className="font-medium text-gray-300 mb-1">95% Confidence Intervals</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {results.confidenceIntervals.slice(0, 8).map((ci, i) => (
+              <div key={i} className="bg-white/5 rounded p-1.5">
+                <span className="text-[10px] text-gray-500">Period {i + 1}</span>
+                <p className="text-xs font-mono">[{ci.lower?.toFixed(1)}, {ci.upper?.toFixed(1)}]</p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

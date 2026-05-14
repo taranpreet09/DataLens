@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useDataset } from '../context/DatasetContext';
+import NLQueryBox from '../components/intelligence/NLQueryBox';
+import TextNlpPanel from '../components/intelligence/TextNlpPanel';
 
 // ── Fixed question templates ──────────────────────────────────────────────────
 // Each question has an id, label, icon, keywords, and a resolver function
@@ -326,6 +328,14 @@ export default function AIInsights() {
       {/* Main content */}
       {ds && stats && (
         <>
+          {/* NL Query Box — AI-powered free-form questions */}
+          <NLQueryBox datasetId={ds.id} />
+
+          {/* Text NLP Panel — per-column sentiment/topics/keywords */}
+          {stats?.textColumns?.length > 0 && (
+            <TextNlpPanel datasetId={ds.id} textColumns={stats.textColumns} />
+          )}
+
           {/* Search / Filter bar */}
           <div className="relative">
             <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>

@@ -9,7 +9,10 @@ import jwt from 'jsonwebtoken';
 import authRoutes from './routes/auth.js';
 import datasetRoutes from './routes/datasets.js';
 import analysisRoutes from './routes/analysis.js';
-import phase3Routes from './routes/phase3.js';
+import analysisEngineRoutes from './routes/analysisEngine.js';
+import advancedMlRoutes from './routes/advancedMl.js';
+import collaborationRoutes from './routes/collaboration.js';
+import intelligenceRoutes from './routes/intelligence.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -77,7 +80,10 @@ const apiLimiter = rateLimit({
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/datasets', apiLimiter, datasetRoutes);
 app.use('/api/analysis', apiLimiter, analysisRoutes);
-app.use('/api/phase3', apiLimiter, phase3Routes);
+app.use('/api/analysis-engine', apiLimiter, analysisEngineRoutes);
+app.use('/api/advanced-ml', apiLimiter, advancedMlRoutes);
+app.use('/api/collaboration', apiLimiter, collaborationRoutes);
+app.use('/api/intelligence', apiLimiter, intelligenceRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

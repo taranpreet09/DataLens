@@ -1,5 +1,5 @@
 import { Queue, Worker } from 'bullmq';
-import { getRedisConnection } from '../config/redis.js';
+import { getRedisConnection, cacheDel } from '../config/redis.js';
 import { streamParseCSV, readAllRows, stratifiedSample } from './fileParser.js';
 import { computeAllStats } from './statsEngine.js';
 import Dataset from '../models/Dataset.js';
@@ -115,7 +115,24 @@ async function processJob(job) {
       parsedFilePath,
       status: 'ready',
       parseTime: Date.now() - job.timestamp,
+      // Clear Intelligence Layer cached artifacts so they regenerate against
+      // the new schema/stats on the next request.
+      narrative: null,
+      edaReport: null,
     });
+
+    // Purge Redis narrative cache keys for this dataset (pattern-based delete).
+    // Keys follow: intelligence:narrative:{datasetId}:*
+    try {
+      const conn = getRedisConnection();
+      const pattern = `intelligence:narrative:${datasetId}:*`;
+      const keys = await conn.keys(pattern);
+      if (keys.length > 0) {
+        await Promise.all(keys.map(k => cacheDel(k)));
+      }
+    } catch {
+      // Non-critical — cache will expire naturally.
+    }
 
     emitProgress('complete', 100, 'Analysis complete!');
 

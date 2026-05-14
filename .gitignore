@@ -131,3 +131,6 @@ Thumbs.db
 
 # Large test datasets (exceeds GitHub 100MB limit)
 test_data/10_large_100mb_dataset.csv
+
+# Python virtual environment
+python_service/venv/

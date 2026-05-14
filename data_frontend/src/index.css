@@ -77,6 +77,12 @@
   100% { bottom: -100px; }
 }
 
+@keyframes indeterminate {
+  0%   { transform: translateX(-100%) scaleX(0.5); }
+  50%  { transform: translateX(0%)    scaleX(0.8); }
+  100% { transform: translateX(200%)  scaleX(0.5); }
+}
+
 @keyframes floatOrb1 {
   0%, 100% { transform: translate(0, 0) scale(1); }
   33%       { transform: translate(30px, -20px) scale(1.1); }
