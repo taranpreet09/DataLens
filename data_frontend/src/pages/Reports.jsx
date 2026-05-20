@@ -98,10 +98,10 @@ export default function Reports() {
         <div id="report-content" className="space-y-6 lg:space-y-8">
           
           {/* 🤖 AI Narrative Panel */}
-          <NarrativePanel datasetId={ds.id} initialNarrative={ds.narrative} />
+          <NarrativePanel datasetId={ds.dbId || ds.id} initialNarrative={ds.narrative} />
 
           {/* 📊 EDA Report Panel */}
-          <EDAReportPanel datasetId={ds.id} cachedReport={ds.edaReport} />
+          <EDAReportPanel datasetId={ds.dbId || ds.id} cachedReport={ds.edaReport} />
 
           {/* 🔍 Executive Summary Panel */}
           <div className="bg-surface-container-low rounded-2xl border border-primary/20 p-6 lg:p-8 shadow-xl shadow-primary/5">
@@ -127,7 +127,7 @@ export default function Reports() {
               <SummaryCard 
                 label="Primary Trend" 
                 value={stats.timeSeries ? stats.timeSeries.trendDirection : "Stable"} 
-                desc={stats.timeSeries ? `Across ${stats.timeSeries.series.length} periods` : "No temporal variance"}
+                desc={stats.timeSeries ? `Across ${stats.timeSeries.series?.length ?? 0} periods` : "No temporal variance"}
                 icon="trending_up"
                 color={stats.timeSeries?.trendDirection === 'Upward trend' ? 'text-secondary' : 'text-on-surface'}
               />
@@ -142,10 +142,10 @@ export default function Reports() {
             <div className="mt-8 p-4 bg-surface-container rounded-xl border border-outline-variant/10">
               <h4 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2">Automated Narrative Analysis</h4>
               <p className="text-sm text-on-surface leading-relaxed italic">
-                "Technical analysis of <strong>{ds.name}</strong> reveals a {stats.qualityScore >= 80 ? 'highly reliable' : 'varied'} dataset structure. 
-                {stats.qualityFlags.totalNullCount > 0 ? ` We detected ${stats.qualityFlags.totalNullCount.toLocaleString()} missing values which may impact granular accuracy.` : ' Data density is optimal with no significant missingness.'}
-                {stats.timeSeries ? ` A distinct ${stats.timeSeries.trendDirection.toLowerCase()} is visible in the primary metric.` : ''}
-                {stats.correlationInsights?.[0] ? ` The strongest behavioral link exists between ${stats.correlationInsights[0].text.split('are')[0].trim()}.` : ''}"
+                "Technical analysis of <strong>{ds.name}</strong> reveals a {(stats.qualityScore ?? 0) >= 80 ? 'highly reliable' : 'varied'} dataset structure. 
+                {(stats.qualityFlags?.totalNullCount ?? 0) > 0 ? ` We detected ${(stats.qualityFlags?.totalNullCount ?? 0).toLocaleString()} missing values which may impact granular accuracy.` : ' Data density is optimal with no significant missingness.'}
+                {stats.timeSeries ? ` A distinct ${stats.timeSeries.trendDirection?.toLowerCase() ?? 'trend'} is visible in the primary metric.` : ''}
+                {stats.correlationInsights?.[0]?.text ? ` The strongest behavioral link exists between ${stats.correlationInsights[0].text.split('are')[0].trim()}.` : ''}"
               </p>
             </div>
           </div>
@@ -160,14 +160,14 @@ export default function Reports() {
                   {stats.timeSeries ? 'Time Series Overview' : 'Dataset Summary'}
                 </h3>
                 <p className="text-sm text-on-surface-variant">
-                  {stats.timeSeries ? `${stats.timeSeries.series.length} periods · ${stats.timeSeries.trendDirection}` : 'No date column detected'}
+                  {stats.timeSeries ? `${stats.timeSeries.series?.length ?? 0} periods · ${stats.timeSeries.trendDirection ?? 'Unknown'}` : 'No date column detected'}
                 </p>
               </div>
             </div>
             <div className="h-72 w-full">
               {stats.timeSeries ? (
                 <DynamicTimeSeries
-                  data={stats.timeSeries.series}
+                  data={stats.timeSeries.series || []}
                   trendLine={stats.timeSeries.trendLine}
                   peak={stats.timeSeries.peak}
                   trough={stats.timeSeries.trough}
@@ -176,13 +176,13 @@ export default function Reports() {
               ) : (
                 <div className="grid grid-cols-2 gap-4 h-full">
                   {numCols.slice(0, 4).map(col => {
-                    const s = stats.numericStats[col];
+                    const s = stats.numericStats?.[col];
                     return s ? (
                       <div key={col} className="bg-surface-container rounded-xl p-4 flex flex-col justify-between">
                         <p className="text-xs text-on-surface-variant truncate">{col}</p>
                         <div>
-                          <p className="text-2xl font-bold font-headline text-primary">{s.mean.toLocaleString()}</p>
-                          <p className="text-[10px] text-on-surface-variant">Mean · σ {s.stdDev} · Skew {s.skewness}</p>
+                          <p className="text-2xl font-bold font-headline text-primary">{s.mean?.toLocaleString() ?? '—'}</p>
+                          <p className="text-[10px] text-on-surface-variant">Mean · σ {s.stdDev ?? '—'} · Skew {s.skewness ?? '—'}</p>
                         </div>
                       </div>
                     ) : null;
@@ -225,21 +225,21 @@ export default function Reports() {
                   </thead>
                   <tbody className="text-xs">
                     {numCols.map(col => {
-                      const s = stats.numericStats[col];
+                      const s = stats.numericStats?.[col];
                       if (!s) return null;
                       return (
                         <tr key={col} className="border-b border-outline-variant/5 hover:bg-surface-bright transition-colors">
                           <td className="px-5 py-4 font-medium text-sm">{col}</td>
-                          <td className="px-5 py-4 font-mono">{s.sum.toLocaleString()}</td>
-                          <td className="px-5 py-4 font-mono text-primary">{s.mean.toLocaleString()}</td>
-                          <td className="px-5 py-4 font-mono">{s.median.toLocaleString()}</td>
-                          <td className="px-5 py-4 font-mono">{s.min.toLocaleString()}</td>
-                          <td className="px-5 py-4 font-mono">{s.max.toLocaleString()}</td>
-                          <td className="px-5 py-4 font-mono">{s.stdDev.toLocaleString()}</td>
-                          <td className="px-5 py-4 font-mono">{s.variance.toLocaleString()}</td>
-                          <td className="px-5 py-4 font-mono">{s.iqr.toLocaleString()}</td>
+                          <td className="px-5 py-4 font-mono">{s.sum?.toLocaleString() ?? '—'}</td>
+                          <td className="px-5 py-4 font-mono text-primary">{s.mean?.toLocaleString() ?? '—'}</td>
+                          <td className="px-5 py-4 font-mono">{s.median?.toLocaleString() ?? '—'}</td>
+                          <td className="px-5 py-4 font-mono">{s.min?.toLocaleString() ?? '—'}</td>
+                          <td className="px-5 py-4 font-mono">{s.max?.toLocaleString() ?? '—'}</td>
+                          <td className="px-5 py-4 font-mono">{s.stdDev?.toLocaleString() ?? '—'}</td>
+                          <td className="px-5 py-4 font-mono">{s.variance?.toLocaleString() ?? '—'}</td>
+                          <td className="px-5 py-4 font-mono">{s.iqr?.toLocaleString() ?? '—'}</td>
                           <td className="px-5 py-4 font-mono">
-                            <span className={Math.abs(s.skewness) > 0.5 ? 'text-amber-400 font-bold' : ''}>{s.skewness}</span>
+                            <span className={Math.abs(s.skewness ?? 0) > 0.5 ? 'text-amber-400 font-bold' : ''}>{s.skewness ?? '—'}</span>
                           </td>
                           <td className="px-5 py-4 font-mono">{s.cv ?? '—'}</td>
                           <td className="px-5 py-4 font-mono">
@@ -278,16 +278,16 @@ export default function Reports() {
                   </thead>
                   <tbody className="text-xs">
                     {stats.textColumns.map(col => {
-                      const s = stats.textStats[col];
+                      const s = stats.textStats?.[col];
                       if (!s) return null;
                       return (
                         <tr key={col} className="border-b border-outline-variant/5 hover:bg-surface-bright transition-colors">
                           <td className="px-5 py-4 font-medium text-sm">{col}</td>
-                          <td className="px-5 py-4 font-mono">{s.totalNonEmpty.toLocaleString()}</td>
-                          <td className="px-5 py-4 font-mono text-primary">{s.avgLength.toLocaleString()}</td>
-                          <td className="px-5 py-4 font-mono">{s.avgWords.toLocaleString()}</td>
+                          <td className="px-5 py-4 font-mono">{(s.totalNonEmpty ?? 0).toLocaleString()}</td>
+                          <td className="px-5 py-4 font-mono text-primary">{(s.avgLength ?? 0).toLocaleString()}</td>
+                          <td className="px-5 py-4 font-mono">{(s.avgWords ?? 0).toLocaleString()}</td>
                           <td className="px-5 py-4 font-mono">
-                            <span className={s.whitespaceAnomalies > 0 ? 'text-amber-400 font-bold' : 'text-secondary'}>{s.whitespaceAnomalies}</span>
+                            <span className={(s.whitespaceAnomalies ?? 0) > 0 ? 'text-amber-400 font-bold' : 'text-secondary'}>{s.whitespaceAnomalies ?? 0}</span>
                           </td>
                           <td className="px-5 py-4 font-mono">
                             <span className={s.specialCharAnomalies > 0 ? 'text-error font-bold' : 'text-secondary'}>{s.specialCharAnomalies}</span>
@@ -309,11 +309,11 @@ export default function Reports() {
               <h3 className="text-xl font-bold font-headline mb-4">Data Quality Summary</h3>
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <QualityStat label="Total Rows" value={ds.rowCount?.toLocaleString()} icon="table_rows" />
-                <QualityStat label="Duplicate Rows" value={stats.qualityFlags.duplicateRowCount} icon="content_copy" color={stats.qualityFlags.duplicateRowCount > 0 ? 'text-error' : 'text-secondary'} />
-                <QualityStat label="Null Cells" value={`${stats.qualityFlags.totalNullCount.toLocaleString()} (${stats.qualityFlags.nullPct}%)`} icon="block" color={stats.qualityFlags.totalNullCount > 0 ? 'text-amber-400' : 'text-secondary'} />
-                <QualityStat label="Empty Rows" value={stats.qualityFlags.emptyRowCount} icon="delete_sweep" />
+                <QualityStat label="Duplicate Rows" value={stats.qualityFlags?.duplicateRowCount ?? 0} icon="content_copy" color={(stats.qualityFlags?.duplicateRowCount ?? 0) > 0 ? 'text-error' : 'text-secondary'} />
+                <QualityStat label="Null Cells" value={`${(stats.qualityFlags?.totalNullCount ?? 0).toLocaleString()} (${stats.qualityFlags?.nullPct ?? 0}%)`} icon="block" color={(stats.qualityFlags?.totalNullCount ?? 0) > 0 ? 'text-amber-400' : 'text-secondary'} />
+                <QualityStat label="Empty Rows" value={stats.qualityFlags?.emptyRowCount ?? 0} icon="delete_sweep" />
               </div>
-              <QualityFlagChips flags={stats.qualityFlags.flags} />
+              <QualityFlagChips flags={stats.qualityFlags?.flags} />
             </div>
           </div>
         </div>

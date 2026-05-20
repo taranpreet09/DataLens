@@ -22,8 +22,8 @@ export default function Sidebar({ isOpen, onClose }) {
           <span className="material-symbols-outlined">close</span>
         </button>
 
-        <div className="px-6 py-8">
-          <div className="flex items-center gap-3 mb-10">
+        <div className="px-6 py-6 flex-1 overflow-y-auto">
+          <div className="flex items-center gap-3 mb-6">
             <div className="w-8 h-8 bg-primary rounded flex items-center justify-center">
               <span className="material-symbols-outlined text-on-primary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>architecture</span>
             </div>
@@ -32,10 +32,6 @@ export default function Sidebar({ isOpen, onClose }) {
               <span className="text-[10px] text-on-surface-variant tracking-widest uppercase opacity-70">Analytics Platform</span>
             </div>
           </div>
-          <button className="w-full bg-primary hover:bg-primary-fixed-dim text-on-primary-container font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 mb-8 transition-all active:scale-95 duration-100">
-            <span className="material-symbols-outlined text-sm">upload</span>
-            Upload Data
-          </button>
           <nav className="flex flex-col space-y-2">
             <div className="px-4 pt-2 pb-1 text-[10px] uppercase tracking-widest text-on-surface-variant/60 font-bold">
               Library
@@ -72,7 +68,7 @@ export default function Sidebar({ isOpen, onClose }) {
             </NavLink>
           </nav>
         </div>
-        <div className="mt-auto p-6 space-y-2">
+        <div className="p-6 space-y-2 border-t border-[#20201f]">
           <a href="#" className="flex items-center gap-3 text-gray-500 px-4 py-3 mx-0 hover:text-gray-300 hover:bg-[#20201f] rounded-lg transition-all">
             <span className="material-symbols-outlined">help_outline</span>
             Support

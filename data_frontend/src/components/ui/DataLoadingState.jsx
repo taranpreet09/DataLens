@@ -19,14 +19,14 @@ export default function DataLoadingState({
   const message = subtitle ?? stageMessages[stage] ?? 'Crunching numbers, almost there...';
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[420px] gap-6 bg-surface-container-low rounded-2xl border border-outline-variant/10 p-12 mx-4 sm:mx-0">
-      {/* Animated ring */}
-      <div className="relative">
-        <div className="h-20 w-20 rounded-full border-4 border-outline-variant/20" />
-        <div className="absolute inset-0 h-20 w-20 rounded-full border-4 border-transparent border-t-primary border-r-primary animate-spin" />
-        <span className="material-symbols-outlined absolute inset-0 flex items-center justify-center text-primary text-2xl">
-          insights
-        </span>
+    <div className="flex flex-col items-center justify-center min-h-[420px] gap-8 bg-surface-container-low rounded-2xl border border-outline-variant/10 p-12 mx-4 sm:mx-0">
+      {/* Animated dots loader */}
+      <div className="relative flex items-center justify-center">
+        <div className="flex gap-2">
+          <div className="w-3 h-3 rounded-full bg-primary animate-[bounce_1.4s_ease-in-out_infinite]" />
+          <div className="w-3 h-3 rounded-full bg-primary animate-[bounce_1.4s_ease-in-out_0.2s_infinite]" />
+          <div className="w-3 h-3 rounded-full bg-primary animate-[bounce_1.4s_ease-in-out_0.4s_infinite]" />
+        </div>
       </div>
 
       {/* Title + subtitle */}
@@ -53,14 +53,16 @@ export default function DataLoadingState({
         </div>
       )}
 
-      {/* Progress bar (indeterminate) */}
+      {/* Subtle shimmer bar */}
       <div className="w-full max-w-xs h-1 bg-surface-container-highest rounded-full overflow-hidden">
-        <div className="h-full w-1/3 bg-primary rounded-full animate-[loadbar_1.5s_ease-in-out_infinite]" />
+        <div className="h-full bg-gradient-to-r from-transparent via-primary to-transparent rounded-full animate-[shimmer_2s_ease-in-out_infinite]" />
       </div>
+
       <style>{`
-        @keyframes loadbar {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(400%); }
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); width: 50%; }
+          50% { width: 70%; }
+          100% { transform: translateX(250%); width: 50%; }
         }
       `}</style>
     </div>

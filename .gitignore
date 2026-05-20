@@ -134,3 +134,10 @@ test_data/10_large_100mb_dataset.csv
 
 # Python virtual environment
 python_service/venv/
+
+# Kiro
+.kiro/
+
+# Python bytecode
+__pycache__/
+*.pyc

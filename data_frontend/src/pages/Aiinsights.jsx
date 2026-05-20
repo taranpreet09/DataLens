@@ -16,13 +16,13 @@ const QUESTION_TEMPLATES = [
     color: 'text-primary',
     resolve: (ds, stats) => {
       const lines = [
-        `**${ds.name}** contains **${stats.rowCount.toLocaleString()} rows** and **${stats.headers.length} columns**.`,
-        `Column types: ${stats.numericColumns.length} numeric, ${stats.categoricalColumns?.length ?? 0} categorical, ${stats.dateColumns?.length ?? 0} date, ${stats.textColumns?.length ?? 0} text.`,
-        `Data quality score: **${stats.qualityScore}/100**${stats.qualityScore >= 80 ? ' (Excellent)' : stats.qualityScore >= 50 ? ' (Moderate)' : ' (Poor)'}.`,
+        `**${ds.name}** contains **${(stats.rowCount ?? 0).toLocaleString()} rows** and **${(stats.headers?.length ?? 0)} columns**.`,
+        `Column types: ${stats.numericColumns?.length ?? 0} numeric, ${stats.categoricalColumns?.length ?? 0} categorical, ${stats.dateColumns?.length ?? 0} date, ${stats.textColumns?.length ?? 0} text.`,
+        `Data quality score: **${stats.qualityScore ?? '—'}/100**${(stats.qualityScore ?? 0) >= 80 ? ' (Excellent)' : (stats.qualityScore ?? 0) >= 50 ? ' (Moderate)' : ' (Poor)'}.`,
       ];
-      if (stats.qualityFlags.totalNullCount > 0)
+      if (stats.qualityFlags?.totalNullCount > 0)
         lines.push(`Total null/missing cells: ${stats.qualityFlags.totalNullCount.toLocaleString()} (${stats.qualityFlags.nullPct}%).`);
-      if (stats.qualityFlags.duplicateRowCount > 0)
+      if (stats.qualityFlags?.duplicateRowCount > 0)
         lines.push(`Duplicate rows detected: ${stats.qualityFlags.duplicateRowCount} (${stats.qualityFlags.duplicatePct}%).`);
       return lines;
     },
@@ -34,12 +34,12 @@ const QUESTION_TEMPLATES = [
     icon: 'monitoring',
     color: 'text-secondary',
     resolve: (ds, stats) => {
-      if (stats.numericColumns.length === 0) return ['No numeric columns found in this dataset.'];
+      if (!stats.numericColumns?.length) return ['No numeric columns found in this dataset.'];
       const lines = [`Found **${stats.numericColumns.length} numeric columns**:`];
       for (const col of stats.numericColumns.slice(0, 6)) {
-        const s = stats.numericStats[col];
+        const s = stats.numericStats?.[col];
         if (!s) continue;
-        lines.push(`• **${col}**: mean ${s.mean.toLocaleString()}, median ${s.median.toLocaleString()}, range ${s.min.toLocaleString()} – ${s.max.toLocaleString()}, σ = ${s.stdDev.toLocaleString()}`);
+        lines.push(`• **${col}**: mean ${s.mean?.toLocaleString() ?? '—'}, median ${s.median?.toLocaleString() ?? '—'}, range ${s.min?.toLocaleString() ?? '—'} – ${s.max?.toLocaleString() ?? '—'}, σ = ${s.stdDev?.toLocaleString() ?? '—'}`);
       }
       if (stats.numericColumns.length > 6) lines.push(`...and ${stats.numericColumns.length - 6} more columns.`);
       return lines;
@@ -90,12 +90,12 @@ const QUESTION_TEMPLATES = [
     resolve: (ds, stats) => {
       const lines = [];
       let found = false;
-      for (const col of stats.numericColumns) {
-        const s = stats.numericStats[col];
+      for (const col of (stats.numericColumns || [])) {
+        const s = stats.numericStats?.[col];
         if (!s) continue;
         if (s.zscoreOutlierCount > 0 || s.iqrOutlierCount > 0) {
           found = true;
-          lines.push(`• **${col}**: ${s.zscoreOutlierCount} Z-score outliers, ${s.iqrOutlierCount} IQR outliers (range: ${s.min.toLocaleString()} – ${s.max.toLocaleString()}).`);
+          lines.push(`• **${col}**: ${s.zscoreOutlierCount ?? 0} Z-score outliers, ${s.iqrOutlierCount ?? 0} IQR outliers (range: ${s.min?.toLocaleString() ?? '—'} – ${s.max?.toLocaleString() ?? '—'}).`);
         }
       }
       if (stats.anomalies?.benfordAnomalies?.length > 0) {
@@ -107,7 +107,7 @@ const QUESTION_TEMPLATES = [
       if (stats.anomalies?.fuzzyDuplicates?.length > 0) {
         found = true;
         for (const a of stats.anomalies.fuzzyDuplicates.slice(0, 3)) {
-          lines.push(`• Near-duplicate categories in **${a.column}**: "${a.group.join('", "')}"`);
+          lines.push(`• Near-duplicate categories in **${a.column}**: "${a.group?.join('", "') ?? ''}"`);
         }
       }
       if (!found) lines.push('No significant outliers or anomalies were detected in this dataset.');
@@ -123,7 +123,7 @@ const QUESTION_TEMPLATES = [
     color: 'text-amber-400',
     resolve: (ds, stats) => {
       const lines = [`Overall quality score: **${stats.qualityScore}/100**.`];
-      if (stats.qualityFlags.flags?.length > 0) {
+      if (stats.qualityFlags?.flags?.length > 0) {
         lines.push(`**${stats.qualityFlags.flags.length} quality flags** raised:`);
         for (const f of stats.qualityFlags.flags.slice(0, 8)) {
           const sev = f.severity === 'danger' ? '🔴' : f.severity === 'warning' ? '🟡' : '🔵';
@@ -329,11 +329,11 @@ export default function AIInsights() {
       {ds && stats && (
         <>
           {/* NL Query Box — AI-powered free-form questions */}
-          <NLQueryBox datasetId={ds.id} />
+          <NLQueryBox datasetId={ds.dbId || ds.id} />
 
           {/* Text NLP Panel — per-column sentiment/topics/keywords */}
           {stats?.textColumns?.length > 0 && (
-            <TextNlpPanel datasetId={ds.id} textColumns={stats.textColumns} />
+            <TextNlpPanel datasetId={ds.dbId || ds.id} textColumns={stats.textColumns} />
           )}
 
           {/* Search / Filter bar */}

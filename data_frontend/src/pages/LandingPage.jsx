@@ -1,10 +1,11 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDataset } from '../context/DatasetContext';
 import { useAuth } from '../context/AuthContext';
 import ArtifactTable from '../components/ui/ArtifactTable';
 import QualityBadge from '../components/ui/QualityBadge';
 import QualityFlagChips from '../components/ui/QualityFlagChips';
+import DataLoadingState from '../components/ui/DataLoadingState';
 
 
 function formatBytes(bytes) {
@@ -20,6 +21,28 @@ export default function LandingPage() {
   const fileInputRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
   const [uploadError, setUploadError] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadFileName, setUploadFileName] = useState('');
+  const [pendingDatasetId, setPendingDatasetId] = useState(null);
+
+  // Watch for pending dataset to become ready, then navigate
+  useEffect(() => {
+    if (!pendingDatasetId) return;
+    const pendingDs = datasets.find(d => d.id === pendingDatasetId);
+    if (!pendingDs) return;
+
+    if (pendingDs.status === 'ready') {
+      setPendingDatasetId(null);
+      setIsUploading(false);
+      setUploadFileName('');
+      navigate('/workspace?tab=visualize');
+    } else if (pendingDs.status === 'error') {
+      setPendingDatasetId(null);
+      setIsUploading(false);
+      setUploadFileName('');
+      setUploadError(pendingDs.error || 'Processing failed.');
+    }
+  }, [pendingDatasetId, datasets, navigate]);
 
   const handleFiles = useCallback(async (files) => {
     setUploadError(null);
@@ -33,15 +56,24 @@ export default function LandingPage() {
     for (const file of Array.from(files)) {
       const ext = file.name.split('.').pop().toLowerCase();
       if (!['csv', 'xlsx', 'xls'].includes(ext)) { setUploadError(`"${file.name}" is not supported. Use CSV or Excel.`); continue; }
-      if (file.size > 10 * 1024 * 1024) { setUploadError(`"${file.name}" exceeds the 10 MB limit.`); continue; }
+      if (file.size > 500 * 1024 * 1024) { setUploadError(`"${file.name}" exceeds the 500 MB limit.`); continue; }
       try {
+        setIsUploading(true);
+        setUploadFileName(file.name);
         const newId = await uploadDataset(file);
         if (newId) lastUploadedId = newId;
       } catch (err) {
         setUploadError(err.message || 'Upload failed.');
       }
     }
-    if (lastUploadedId) { setActive(lastUploadedId); navigate('/workspace?tab=visualize'); }
+    if (lastUploadedId) {
+      setActive(lastUploadedId);
+      // Don't navigate yet — wait for dataset to be ready
+      setPendingDatasetId(lastUploadedId);
+    } else {
+      setIsUploading(false);
+      setUploadFileName('');
+    }
   }, [isAuthenticated, uploadDataset, navigate, setActive]);
 
   const onDrop = useCallback((e) => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }, [handleFiles]);
@@ -69,6 +101,15 @@ export default function LandingPage() {
 
         {/* Upload Section */}
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-stretch">
+          {isUploading ? (
+            <div className="lg:col-span-8">
+              <DataLoadingState
+                title={`Processing "${uploadFileName}"`}
+                subtitle="Parsing and computing statistics — this may take a moment for large files..."
+                stage="parsing"
+              />
+            </div>
+          ) : (
           <div
             onDrop={onDrop} onDragOver={onDragOver} onDragLeave={onDragLeave}
             className={`lg:col-span-8 group relative overflow-hidden rounded-xl border-2 border-dashed transition-all flex flex-col items-center justify-center p-8 sm:p-12 lg:p-16 text-center cursor-pointer
@@ -82,17 +123,18 @@ export default function LandingPage() {
               </div>
               <div className="space-y-2">
                 <h3 className="font-headline text-xl sm:text-2xl font-bold">{dragOver ? 'Drop to inject' : 'Inject New Dataset'}</h3>
-                <p className="text-on-surface-variant text-sm max-w-xs mx-auto">Drop CSV, XLSX, or XLS files here. Maximum payload 10 MB per file.</p>
+                <p className="text-on-surface-variant text-sm max-w-xs mx-auto">Drop CSV, XLSX, or XLS files here. Maximum payload 500 MB per file.</p>
               </div>
               <button type="button" className="bg-surface-container-highest hover:bg-surface-bright text-on-surface px-8 py-3 rounded-md font-medium transition-colors pointer-events-none">Browse Files</button>
               {uploadError && <p className="text-error text-xs mt-2 bg-error/10 px-3 py-2 rounded">{uploadError}</p>}
             </div>
             <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" multiple className="hidden" onChange={e => handleFiles(e.target.files)} />
           </div>
+          )}
 
           {/* Side Panel — Dataset Overview Stats */}
           <div className="lg:col-span-4 flex flex-col gap-4">
-            {stats ? (
+            {stats && stats.qualityScore != null ? (
               <>
                 {/* Quality Score */}
                 <div className="rounded-xl bg-surface-container-high p-5 border border-outline-variant/10">
@@ -106,13 +148,13 @@ export default function LandingPage() {
                   <StatMini label="Parse Time" value={`${activeDs.parseTime ?? '—'}ms`} icon="timer" />
                 </div>
                 {/* Primary Column Summary */}
-                {stats.primaryCol && stats.numericStats[stats.primaryCol] && (
+                {stats.primaryCol && stats.numericStats?.[stats.primaryCol] && (
                   <div className="rounded-xl bg-surface-container-high p-4 border border-outline-variant/10 space-y-2">
                     <p className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Primary: {stats.primaryCol}</p>
                     <div className="grid grid-cols-3 gap-2 text-xs">
-                      <div><span className="text-on-surface-variant">Mean</span><p className="font-bold text-primary">{stats.numericStats[stats.primaryCol].mean.toLocaleString()}</p></div>
-                      <div><span className="text-on-surface-variant">Median</span><p className="font-bold">{stats.numericStats[stats.primaryCol].median.toLocaleString()}</p></div>
-                      <div><span className="text-on-surface-variant">σ</span><p className="font-bold">{stats.numericStats[stats.primaryCol].stdDev.toLocaleString()}</p></div>
+                      <div><span className="text-on-surface-variant">Mean</span><p className="font-bold text-primary">{stats.numericStats[stats.primaryCol].mean?.toLocaleString() ?? '—'}</p></div>
+                      <div><span className="text-on-surface-variant">Median</span><p className="font-bold">{stats.numericStats[stats.primaryCol].median?.toLocaleString() ?? '—'}</p></div>
+                      <div><span className="text-on-surface-variant">σ</span><p className="font-bold">{stats.numericStats[stats.primaryCol].stdDev?.toLocaleString() ?? '—'}</p></div>
                     </div>
                   </div>
                 )}
@@ -120,13 +162,13 @@ export default function LandingPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-lg bg-surface-container-high p-3 border border-outline-variant/10 text-center">
                     <p className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Nulls</p>
-                    <p className="text-lg font-bold font-headline">{stats.qualityFlags.totalNullCount.toLocaleString()}</p>
-                    <p className="text-[10px] text-on-surface-variant">{stats.qualityFlags.nullPct}%</p>
+                    <p className="text-lg font-bold font-headline">{stats.qualityFlags?.totalNullCount?.toLocaleString() ?? '0'}</p>
+                    <p className="text-[10px] text-on-surface-variant">{stats.qualityFlags?.nullPct ?? 0}%</p>
                   </div>
                   <div className="rounded-lg bg-surface-container-high p-3 border border-outline-variant/10 text-center">
                     <p className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Dupes</p>
-                    <p className="text-lg font-bold font-headline">{stats.qualityFlags.duplicateRowCount}</p>
-                    <p className="text-[10px] text-on-surface-variant">{stats.qualityFlags.duplicatePct}%</p>
+                    <p className="text-lg font-bold font-headline">{stats.qualityFlags?.duplicateRowCount ?? 0}</p>
+                    <p className="text-[10px] text-on-surface-variant">{stats.qualityFlags?.duplicatePct ?? 0}%</p>
                   </div>
                 </div>
               </>

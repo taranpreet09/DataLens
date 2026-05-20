@@ -118,12 +118,11 @@ router.get('/health', wrap(async (req, res) => {
   let model = cfg.modelId;
 
   if (cfg.enabled) {
-    if (!cfg.credentialsResolved) {
+    if (!cfg.credentialsResolved && !process.env.GEMINI_API_KEY) {
       bedrockStatus = 'error';
     } else {
-      // Lazy import to avoid loading the Bedrock SDK when the layer is disabled.
       try {
-        const { invokeModel } = await import('../services/bedrockClient.js');
+        const { invokeModel } = await import('../services/geminiClient.js');
         await invokeModel({
           feature: 'health',
           messages: [{ role: 'user', content: 'ping' }],

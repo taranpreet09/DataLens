@@ -6,11 +6,17 @@ import DynamicBarChart from '../components/charts/DynamicBarChart';
 import DonutChart from '../components/charts/DonutChart';
 import EmptyChartState from '../components/charts/EmptyChartState';
 import DynamicChart from '../components/charts/DynamicChart';
+import DataLoadingState from '../components/ui/DataLoadingState';
 
 export default function Visualizer() {
   const { activeDataset, datasets, setActive } = useDataset();
   const ds = activeDataset;
   const stats = ds?.stats;
+
+  // Guard: if dataset is processing or stats not yet available, show loader
+  if (ds && (ds.status === 'processing' || !stats)) {
+    return <DataLoadingState title={`Processing "${ds.name}"`} stage="processing" />;
+  }
 
   // Filter out ignored/internal columns (IDs, Serial Numbers, etc.)
   const filterIgnoredCols = (keys) => keys.filter(k => !/^(s\.?no\.?|id|serial\s*no|uuid)$/i.test(k));
@@ -33,10 +39,10 @@ export default function Visualizer() {
   if (selectedHistCol) {
     if (stats?.histogramBuckets?.[selectedHistCol]) {
       histData = stats.histogramBuckets[selectedHistCol];
-      comboChartData = histData.bins.map(b => ({ range: b.range, count: b.count }));
+      comboChartData = (histData.bins || []).map(b => ({ range: b.range, count: b.count }));
     } else if (stats?.categoricalStats?.[selectedHistCol]) {
       histData = stats.categoricalStats[selectedHistCol];
-      comboChartData = histData.top10.map(c => ({ range: c.value, count: c.count }));
+      comboChartData = (histData.top10 || []).map(c => ({ range: c.value, count: c.count }));
     }
   }
 
@@ -65,14 +71,14 @@ export default function Visualizer() {
     kpis.push({
       label: 'Columns',
       value: ds.headers?.length ?? '—',
-      sub: `${stats.numericColumns.length} numeric, ${stats.categoricalColumns?.length ?? 0} cat`,
+      sub: `${stats.numericColumns?.length ?? 0} numeric, ${stats.categoricalColumns?.length ?? 0} cat`,
       color: 'primary',
     });
     kpis.push({
       label: 'Quality Score',
-      value: `${stats.qualityScore}/100`,
-      sub: stats.qualityScore >= 80 ? 'Excellent' : stats.qualityScore >= 50 ? 'Moderate' : 'Poor',
-      color: stats.qualityScore >= 80 ? 'secondary' : 'error',
+      value: `${stats.qualityScore ?? '—'}/100`,
+      sub: (stats.qualityScore ?? 0) >= 80 ? 'Excellent' : (stats.qualityScore ?? 0) >= 50 ? 'Moderate' : 'Poor',
+      color: (stats.qualityScore ?? 0) >= 80 ? 'secondary' : 'error',
     });
     if (stats.timeSeries) {
       kpis.push({
@@ -85,8 +91,8 @@ export default function Visualizer() {
     } else {
       kpis.push({
         label: 'Null Values',
-        value: stats.qualityFlags.totalNullCount.toLocaleString(),
-        sub: `${stats.qualityFlags.nullPct}% of cells`,
+        value: (stats.qualityFlags?.totalNullCount ?? 0).toLocaleString(),
+        sub: `${stats.qualityFlags?.nullPct ?? 0}% of cells`,
         color: 'error',
       });
     }
@@ -290,7 +296,7 @@ export default function Visualizer() {
                 )}
               </div>
 
-              {freqData && (
+              {freqData && freqData.top10 && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div style={{ height: 260 }}>
                     <DynamicBarChart
@@ -348,8 +354,8 @@ export default function Visualizer() {
             <section className="bg-surface-container rounded-2xl p-5 sm:p-7 border border-outline-variant/5">
               <h3 className="text-lg font-headline font-bold mb-5">Date Column Analysis</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {stats.dateColumns.map((col) => {
-                  const d = stats.dateStats[col];
+                {(stats.dateColumns || []).map((col) => {
+                  const d = stats.dateStats?.[col];
                   if (!d) return null;
                   return (
                     <div key={col} className="bg-surface-container-low rounded-xl p-5 border border-outline-variant/10 space-y-3">

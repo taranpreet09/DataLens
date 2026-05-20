@@ -46,7 +46,7 @@ function BannerContent({ code, retryable, retryAfterSeconds, rawMessage }) {
   let message;
   let hideRegenerate = false;
 
-  if (code === 'BEDROCK_NOT_CONFIGURED' || code === 'INTELLIGENCE_DISABLED') {
+  if (code === 'BEDROCK_NOT_CONFIGURED' || code === 'INTELLIGENCE_DISABLED' || code === 'LLM_NOT_CONFIGURED') {
     message = 'AI features are not configured for this environment.';
     hideRegenerate = true;
   } else if (code === 'LLM_RATE_LIMITED') {

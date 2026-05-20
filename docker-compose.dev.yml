@@ -1,0 +1,40 @@
+version: '3.8'
+
+# Development overrides — run with:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+
+services:
+  # ─── Backend with hot-reload (nodemon + volume mount) ──────────────────────────
+  backend:
+    build:
+      context: ./data_backend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./data_backend:/app
+      - /app/node_modules        # keep container node_modules separate
+      - backend_storage:/app/storage
+    command: ["npx", "nodemon", "--watch", ".", "--ext", "js,json", "--ignore", "node_modules/", "--ignore", "storage/", "server.js"]
+
+  # ─── Python service with hot-reload (uvicorn --reload) ─────────────────────────
+  python:
+    volumes:
+      - ./python_service:/app
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "/app"]
+
+  # ─── Frontend with Vite dev server (HMR) ───────────────────────────────────────
+  frontend:
+    build:
+      context: ./data_frontend
+      dockerfile: Dockerfile
+      target: build            # stop at the build stage which has all source + deps
+    volumes:
+      - ./data_frontend:/app
+      - /app/node_modules      # keep container node_modules separate
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:5000
+    command: ["npx", "vite", "--host", "0.0.0.0", "--port", "5173"]
+
+volumes:
+  backend_storage:

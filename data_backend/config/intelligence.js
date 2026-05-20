@@ -50,8 +50,9 @@ export function intelligenceConfig() {
     isRealValue(env.AWS_ACCESS_KEY_ID) && isRealValue(env.AWS_SECRET_ACCESS_KEY);
   const hasProfile = isRealValue(env.AWS_PROFILE);
   const hasRoleArn = isRealValue(env.AWS_ROLE_ARN);
+  const hasBearerToken = isRealValue(env.AWS_BEARER_TOKEN_BEDROCK);
 
-  const credentialsResolved = hasAccessKeyPair || hasProfile || hasRoleArn;
+  const credentialsResolved = hasAccessKeyPair || hasProfile || hasRoleArn || hasBearerToken;
 
   return {
     enabled,
@@ -60,5 +61,7 @@ export function intelligenceConfig() {
     tokenBudget,
     timeoutMs,
     credentialsResolved,
+    hasBearerToken,
+    bearerToken: hasBearerToken ? env.AWS_BEARER_TOKEN_BEDROCK.trim() : null,
   };
 }

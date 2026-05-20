@@ -44,12 +44,19 @@ function getClient() {
   if (!cfg.credentialsResolved) {
     throw withCode(
       'BEDROCK_NOT_CONFIGURED',
-      'AWS credentials are not configured. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY (or AWS_PROFILE / AWS_ROLE_ARN).',
+      'AWS credentials are not configured. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY (or AWS_PROFILE / AWS_ROLE_ARN / AWS_BEARER_TOKEN_BEDROCK).',
       { retryable: false }
     );
   }
 
-  _client = new BedrockRuntimeClient({ region: cfg.region });
+  const clientOpts = { region: cfg.region };
+
+  // If using Bedrock API key (bearer token), configure token-based auth
+  if (cfg.hasBearerToken) {
+    clientOpts.token = { token: cfg.bearerToken };
+  }
+
+  _client = new BedrockRuntimeClient(clientOpts);
   return _client;
 }
 

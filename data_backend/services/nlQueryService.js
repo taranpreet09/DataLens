@@ -7,7 +7,7 @@
  */
 
 import { buildDatasetContext } from './datasetContext.js';
-import { invokeModel } from './bedrockClient.js';
+import { invokeModel } from './geminiClient.js';
 import { dispatch, catalogue } from './toolRegistry.js';
 import { checkLlmBudget } from './llmRateLimiter.js';
 import { nlQueryMessages, nlQueryNarrative } from './promptTemplates.js';

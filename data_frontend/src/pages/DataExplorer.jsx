@@ -162,7 +162,7 @@ export default function DataExplorer() {
                 {healthScore >= 90 ? 'Excellent' : healthScore >= 75 ? 'Good' : healthScore >= 50 ? 'Fair' : 'Poor'}
               </p>
               <p className="text-[10px] text-on-surface-variant mt-0.5">
-                {stats.qualityFlags.totalNullCount} nulls · {stats.qualityFlags.duplicateRowCount} dupes
+                {stats.qualityFlags?.totalNullCount ?? 0} nulls · {stats.qualityFlags?.duplicateRowCount ?? 0} dupes
               </p>
             </div>
           </div>
@@ -232,7 +232,7 @@ export default function DataExplorer() {
             </p>
           ) : (
             <div className="space-y-2 text-sm text-on-surface-variant">
-              <p><strong className="text-on-surface">{cleanReport.totalChanges.toLocaleString()}</strong> total cells modified</p>
+              <p><strong className="text-on-surface">{(cleanReport.totalChanges ?? 0).toLocaleString()}</strong> total cells modified</p>
               <div className="flex flex-wrap gap-4">
                 {cleanReport.nullsStandardized > 0 && (
                   <span className="flex items-center gap-1.5 text-xs"><span className="w-2 h-2 rounded-full bg-amber-400"></span> {cleanReport.nullsStandardized} N/A → null</span>
@@ -282,11 +282,11 @@ export default function DataExplorer() {
 
                   let detail = '';
                   if (type === 'numeric' && ns) {
-                    detail = `μ=${ns.mean.toLocaleString()} | σ=${ns.stdDev.toLocaleString()} | ${ns.min.toLocaleString()}…${ns.max.toLocaleString()} | IQR=${ns.iqr.toLocaleString()} | Skew=${ns.skewness}`;
+                    detail = `μ=${ns.mean?.toLocaleString() ?? '—'} | σ=${ns.stdDev?.toLocaleString() ?? '—'} | ${ns.min?.toLocaleString() ?? '—'}…${ns.max?.toLocaleString() ?? '—'} | IQR=${ns.iqr?.toLocaleString() ?? '—'} | Skew=${ns.skewness ?? '—'}`;
                   } else if (type === 'categorical' && cs) {
-                    detail = `Mode: ${cs.mode} (${cs.concentrationRatio}%) | ${cs.cardinality} unique`;
+                    detail = `Mode: ${cs.mode ?? '—'} (${cs.concentrationRatio ?? 0}%) | ${cs.cardinality ?? 0} unique`;
                   } else if (type === 'date' && dts) {
-                    detail = `${dts.earliest} → ${dts.latest} (${dts.rangeInDays}d)`;
+                    detail = `${dts.earliest ?? '—'} → ${dts.latest ?? '—'} (${dts.rangeInDays ?? '—'}d)`;
                   } else if (type === 'id') {
                     detail = 'Identifier column';
                   }
@@ -297,12 +297,12 @@ export default function DataExplorer() {
                       <td className="px-5 py-4">
                         <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${typeColors[type]}`}>{type}</span>
                       </td>
-                      <td className="px-5 py-4 font-mono text-xs">{b.nonNullCount.toLocaleString()}</td>
+                      <td className="px-5 py-4 font-mono text-xs">{(b.nonNullCount ?? 0).toLocaleString()}</td>
                       <td className="px-5 py-4 font-mono text-xs">
-                        <span className={b.nullPct > 20 ? 'text-error font-bold' : b.nullPct > 0 ? 'text-amber-400' : 'text-secondary'}>{b.nullPct}%</span>
+                        <span className={(b.nullPct ?? 0) > 20 ? 'text-error font-bold' : (b.nullPct ?? 0) > 0 ? 'text-amber-400' : 'text-secondary'}>{b.nullPct ?? 0}%</span>
                       </td>
-                      <td className="px-5 py-4 font-mono text-xs">{b.uniqueCount.toLocaleString()}</td>
-                      <td className="px-5 py-4 font-mono text-xs">{b.uniquenessRatio}%</td>
+                      <td className="px-5 py-4 font-mono text-xs">{(b.uniqueCount ?? 0).toLocaleString()}</td>
+                      <td className="px-5 py-4 font-mono text-xs">{b.uniquenessRatio ?? 0}%</td>
                       <td className="px-5 py-4">
                         <span className={`text-xs font-semibold ${b.qualityStatus === 'Clean' ? 'text-secondary' : b.qualityStatus === 'All nulls' ? 'text-error' : 'text-amber-400'}`}>{b.qualityStatus}</span>
                       </td>
@@ -317,7 +317,7 @@ export default function DataExplorer() {
           {stats?.qualityFlags?.flags?.length > 0 && (
             <div className="space-y-3">
               <h3 className="text-sm font-bold">Quality Flags</h3>
-              <QualityFlagChips flags={stats.qualityFlags.flags} />
+              <QualityFlagChips flags={stats.qualityFlags?.flags} />
             </div>
           )}
         </div>
@@ -351,10 +351,10 @@ export default function DataExplorer() {
                         <span className={s.zscoreOutlierCount > 0 ? 'text-error font-bold' : 'text-secondary'}>{s.zscoreOutlierCount}</span>
                       </td>
                       <td className="px-5 py-4 font-mono text-xs">
-                        <span className={s.iqrOutlierCount > 0 ? 'text-error font-bold' : 'text-secondary'}>{s.iqrOutlierCount}</span>
+                        <span className={(s.iqrOutlierCount ?? 0) > 0 ? 'text-error font-bold' : 'text-secondary'}>{s.iqrOutlierCount ?? 0}</span>
                       </td>
-                      <td className="px-5 py-4 font-mono text-xs">{s.iqrLowerFence.toLocaleString()}</td>
-                      <td className="px-5 py-4 font-mono text-xs">{s.iqrUpperFence.toLocaleString()}</td>
+                      <td className="px-5 py-4 font-mono text-xs">{s.iqrLowerFence?.toLocaleString() ?? '—'}</td>
+                      <td className="px-5 py-4 font-mono text-xs">{s.iqrUpperFence?.toLocaleString() ?? '—'}</td>
                       <td className="px-5 py-4">
                         {a?.disagree ? (
                           <span className="px-2 py-1 rounded bg-amber-400/10 text-amber-400 text-[10px] font-bold">DISAGREE</span>
@@ -375,9 +375,9 @@ export default function DataExplorer() {
 
           {stats?.anomalies && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-              <AnomalyCard title="Constant Columns" icon="block" items={stats.anomalies.constantColumns} description="Zero variance — useless for analysis" color="error" />
-              <AnomalyCard title="Near-Constant Columns" icon="unfold_less" items={stats.anomalies.nearConstantColumns} description="Top value >95% of rows" color="amber-400" />
-              <AnomalyCard title="Suspicious Patterns" icon="psychology_alt" items={stats.anomalies.suspiciousPatterns.map(p => p.description)} description="Monotonic, all-zeros, round numbers" color="tertiary" />
+              <AnomalyCard title="Constant Columns" icon="block" items={stats.anomalies.constantColumns || []} description="Zero variance — useless for analysis" color="error" />
+              <AnomalyCard title="Near-Constant Columns" icon="unfold_less" items={stats.anomalies.nearConstantColumns || []} description="Top value >95% of rows" color="amber-400" />
+              <AnomalyCard title="Suspicious Patterns" icon="psychology_alt" items={(stats.anomalies.suspiciousPatterns || []).map(p => p.description)} description="Monotonic, all-zeros, round numbers" color="tertiary" />
             </div>
           )}
         </div>

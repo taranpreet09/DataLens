@@ -8,7 +8,7 @@
 
 import crypto from 'crypto';
 import { buildDatasetContext } from './datasetContext.js';
-import { invokeModel } from './bedrockClient.js';
+import { invokeModel } from './geminiClient.js';
 import { checkLlmBudget } from './llmRateLimiter.js';
 import { narrativeMessages } from './promptTemplates.js';
 import { withCode } from './intelligenceLogger.js';

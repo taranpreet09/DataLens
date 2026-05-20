@@ -4,11 +4,88 @@ import { computeAllStats } from '../lib/statsEngine';
 import { cleanseDataset } from '../lib/dataCleaner';
 import { downloadCSV } from '../lib/csvExport';
 import { preprocessCSV, parseCSVLine } from '../lib/csvPreprocessor';
+import { datasetsApi } from '../lib/api';
 
 const API_URL = `${import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000'}/api/datasets`;
   
 function getToken() {
   return localStorage.getItem('datalens_token');
+}
+
+// ─── Normalize backend stats shape to frontend expected shape ─────────────────
+// Backend returns: { qualityFlags: [...], totalNulls, nullPct, duplicateRowCount, categoricalStats.*.top5 }
+// Frontend expects: { qualityFlags: { totalNullCount, nullPct, duplicateRowCount, duplicatePct, flags, emptyRowCount }, categoricalStats.*.top10 }
+function normalizeStats(stats) {
+  if (!stats) return null;
+
+  // Already in frontend shape (has qualityFlags.totalNullCount)
+  if (stats.qualityFlags && typeof stats.qualityFlags === 'object' && !Array.isArray(stats.qualityFlags) && 'totalNullCount' in stats.qualityFlags) {
+    return stats;
+  }
+
+  // Convert backend shape → frontend shape
+  const rowCount = stats.rowCount || 0;
+  const dupeCount = stats.duplicateRowCount ?? stats.dupeCount ?? 0;
+  const dupePct = rowCount > 0 ? parseFloat(((dupeCount / rowCount) * 100).toFixed(2)) : 0;
+
+  const normalized = {
+    ...stats,
+    qualityFlags: {
+      totalNullCount: stats.totalNulls ?? 0,
+      nullPct: stats.nullPct ?? 0,
+      duplicateRowCount: dupeCount,
+      duplicatePct: dupePct,
+      emptyRowCount: 0,
+      flags: Array.isArray(stats.qualityFlags) ? stats.qualityFlags : [],
+    },
+    // Ensure these arrays exist even if backend doesn't compute them
+    numericColumns: stats.numericColumns || [],
+    categoricalColumns: stats.categoricalColumns || [],
+    dateColumns: stats.dateColumns || [],
+    textColumns: stats.textColumns || [],
+    dateStats: stats.dateStats || {},
+    textStats: stats.textStats || {},
+    histogramBuckets: stats.histogramBuckets || {},
+    categoryAggregations: stats.categoryAggregations || {},
+    correlationInsights: stats.correlationInsights || [],
+    correlationPairs: stats.correlationPairs || [],
+    anomalies: stats.anomalies || [],
+    insights: stats.insights || [],
+    primaryCol: stats.primaryCol || null,
+    timeSeries: stats.timeSeries || null,
+  };
+
+  // Normalize categoricalStats: backend uses top5, frontend expects top10
+  if (normalized.categoricalStats) {
+    for (const col of Object.keys(normalized.categoricalStats)) {
+      const cs = normalized.categoricalStats[col];
+      if (cs && !cs.top10 && cs.top5) {
+        cs.top10 = cs.top5;
+      }
+      if (cs && !cs.top10) {
+        cs.top10 = [];
+      }
+    }
+  }
+
+  // Compute primaryCol if missing — pick numeric column with highest variance, skip ID/phone-like columns
+  if (!normalized.primaryCol && normalized.numericColumns.length > 0 && normalized.numericStats) {
+    const skipPattern = /^(s\.?no\.?|id|serial|uuid|phone|mobile|tel|fax|zip|pin|postal)/i;
+    const candidates = normalized.numericColumns.filter(col => !skipPattern.test(col));
+    const pool = candidates.length > 0 ? candidates : normalized.numericColumns;
+    let bestCol = pool[0];
+    let bestVariance = 0;
+    for (const col of pool) {
+      const s = normalized.numericStats[col];
+      if (s && (s.variance ?? 0) > bestVariance) {
+        bestVariance = s.variance;
+        bestCol = col;
+      }
+    }
+    normalized.primaryCol = bestCol;
+  }
+
+  return normalized;
 }
 
 // ─── Parsing ──────────────────────────────────────────────────────────────────
@@ -118,6 +195,8 @@ export function DatasetProvider({ children }) {
       let localDatasets = [];
       try {
         localDatasets = (await localforage.getItem('datalens_datasets')) || [];
+        // Normalize stats shape in case data was saved with backend format
+        localDatasets = localDatasets.map(d => d.stats ? { ...d, stats: normalizeStats(d.stats) } : d);
         const localActiveId = await localforage.getItem('datalens_activeId');
         if (isMounted && localDatasets.length > 0) {
           dispatch({ type: 'SET_ALL', payload: localDatasets, activeId: localActiveId });
@@ -135,9 +214,9 @@ export function DatasetProvider({ children }) {
 
         const remoteDatasets = data.datasets.map(d => ({
           id: d._id, name: d.name, size: d.size, ext: d.ext,
-          rowCount: d.rowCount, headers: d.headers, stats: d.stats,
+          rowCount: d.rowCount, headers: d.headers, stats: normalizeStats(d.stats),
           parseTime: d.parseTime, createdAt: new Date(d.createdAt),
-          status: d.rows && d.rows.length > 0 ? 'ready' : 'saved',
+          status: d.status === 'ready' || (d.stats && d.status !== 'error') ? 'ready' : (d.status || 'saved'),
           rows: d.rows || [], dbId: d._id,
         }));
 
@@ -199,49 +278,113 @@ export function DatasetProvider({ children }) {
     });
 
     try {
-      const t0 = performance.now();
-      let parsed;
-      if (ext === 'csv') {
-        parsed = parseCSV(await file.text());
-      } else if (ext === 'xlsx' || ext === 'xls') {
-        parsed = await parseExcel(await file.arrayBuffer());
+      // Upload file to backend — server handles parsing & stats
+      const result = await datasetsApi.upload(file);
+      const ds = result.dataset;
+
+      if (ds.status === 'ready') {
+        // Server processed synchronously (queue was unavailable)
+        dispatch({
+          type: 'UPDATE_DATASET',
+          payload: {
+            id,
+            dbId: ds._id,
+            status: 'ready',
+            headers: ds.headers || [],
+            rows: [],  // Rows stay on server, fetched on demand
+            rowCount: ds.rowCount || 0,
+            stats: normalizeStats(ds.stats) || null,
+            parseTime: ds.parseTime || 0,
+          },
+        });
       } else {
-        throw new Error('Unsupported file type. Use CSV or Excel.');
-      }
-
-      const stats = computeAllStats(parsed.headers, parsed.rows);
-      const parseTime = Math.round(performance.now() - t0);
-
-      dispatch({
-        type: 'UPDATE_DATASET',
-        payload: { id, status: 'ready', headers: parsed.headers, rows: parsed.rows, rowCount: parsed.rowCount, stats, parseTime },
-      });
-
-      if (token) {
-        console.log(`📤 Saving dataset "${name}" to backend (${parsed.rowCount} rows)...`);
-        try {
-          const res = await fetch(API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ name, size, ext, rowCount: parsed.rowCount, headers: parsed.headers, stats, parseTime, rows: parsed.rows }),
-          });
-          if (res.ok) {
-            const saved = await res.json();
-            console.log(`✅ Dataset saved to DB: ${saved.dataset._id}`);
-            dispatch({ type: 'UPDATE_DATASET', payload: { id, dbId: saved.dataset._id } });
-          } else {
-            const errBody = await res.text();
-            console.error(`❌ Backend save failed (${res.status}):`, errBody);
-          }
-        } catch (fetchErr) {
-          console.error('❌ Network error saving dataset:', fetchErr.message);
-        }
+        // Server is processing in background — poll for completion
+        dispatch({
+          type: 'UPDATE_DATASET',
+          payload: { id, dbId: ds._id, status: 'processing' },
+        });
+        pollForCompletion(id, ds._id);
       }
     } catch (err) {
-      dispatch({ type: 'UPDATE_DATASET', payload: { id, status: 'error', error: err.message } });
+      // Fallback: parse client-side for smaller files if server upload fails
+      if (size < 20 * 1024 * 1024) {
+        try {
+          const t0 = performance.now();
+          let parsed;
+          if (ext === 'csv') {
+            parsed = parseCSV(await file.text());
+          } else if (ext === 'xlsx' || ext === 'xls') {
+            parsed = await parseExcel(await file.arrayBuffer());
+          } else {
+            throw new Error('Unsupported file type. Use CSV or Excel.');
+          }
+
+          const stats = computeAllStats(parsed.headers, parsed.rows);
+          const parseTime = Math.round(performance.now() - t0);
+
+          dispatch({
+            type: 'UPDATE_DATASET',
+            payload: { id, status: 'ready', headers: parsed.headers, rows: parsed.rows, rowCount: parsed.rowCount, stats, parseTime },
+          });
+
+          // Try saving to backend
+          if (token) {
+            try {
+              const res = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ name, size, ext, rowCount: parsed.rowCount, headers: parsed.headers, stats, parseTime, rows: parsed.rows }),
+              });
+              if (res.ok) {
+                const saved = await res.json();
+                dispatch({ type: 'UPDATE_DATASET', payload: { id, dbId: saved.dataset._id } });
+              }
+            } catch { /* silent */ }
+          }
+        } catch (parseErr) {
+          dispatch({ type: 'UPDATE_DATASET', payload: { id, status: 'error', error: parseErr.message } });
+          throw parseErr;
+        }
+      } else {
+        dispatch({ type: 'UPDATE_DATASET', payload: { id, status: 'error', error: err.message || 'Upload failed.' } });
+        throw err;
+      }
     }
     return id;
   }, [isAuthenticated]);
+
+  // Poll backend for dataset processing completion
+  const pollForCompletion = useCallback(async (localId, dbId) => {
+    const token = getToken();
+    const maxAttempts = 60; // 5 minutes max (5s intervals)
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise(r => setTimeout(r, 5000));
+      try {
+        const res = await fetch(`${API_URL}/${dbId}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) continue;
+        const { dataset } = await res.json();
+        if (dataset.status === 'ready') {
+          dispatch({
+            type: 'UPDATE_DATASET',
+            payload: {
+              id: localId,
+              status: 'ready',
+              headers: dataset.headers || [],
+              rows: [],
+              rowCount: dataset.rowCount || 0,
+              stats: normalizeStats(dataset.stats) || null,
+              parseTime: dataset.parseTime || 0,
+            },
+          });
+          return;
+        } else if (dataset.status === 'error') {
+          dispatch({ type: 'UPDATE_DATASET', payload: { id: localId, status: 'error', error: 'Server processing failed.' } });
+          return;
+        }
+      } catch { /* retry */ }
+    }
+    dispatch({ type: 'UPDATE_DATASET', payload: { id: localId, status: 'error', error: 'Processing timed out.' } });
+  }, []);
 
   // ─── 1-Click Clean: Standardize the active dataset ────────────────────
   const cleanDataset = useCallback((datasetId) => {

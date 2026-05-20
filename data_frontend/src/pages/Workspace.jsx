@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useDataset } from '../context/DatasetContext';
 
@@ -9,6 +9,7 @@ import StatisticalTests from './StatisticalTests';
 import AnalysisPlayground from './AnalysisPlayground';
 import DatasetComparison from './DatasetComparison';
 import QualityBadge from '../components/ui/QualityBadge';
+import DataLoadingState from '../components/ui/DataLoadingState';
 
 /**
  * Workspace — a single dataset-scoped page with tabs.
@@ -148,6 +149,7 @@ function EmptyWorkspace() {
 
 function OverviewTab({ dataset, onOpenTab }) {
   const navigate = useNavigate();
+  const [selectedCol, setSelectedCol] = useState(null);
 
   if (!dataset) {
     return (
@@ -157,29 +159,27 @@ function OverviewTab({ dataset, onOpenTab }) {
     );
   }
 
-  if (dataset.status !== 'ready' || !dataset.stats) {
+  if (dataset.status !== 'ready' || !dataset.stats || !dataset.stats.numericColumns) {
     return (
-      <div className="px-4 sm:px-6 lg:px-10 py-12 text-center space-y-3">
-        <span className="material-symbols-outlined text-3xl text-on-surface-variant">hourglass_empty</span>
-        <p className="text-on-surface-variant text-sm">
-          {dataset.status === 'error'
-            ? `Failed to parse: ${dataset.error || 'unknown error'}`
-            : 'Parsing dataset…'}
-        </p>
-      </div>
+      <DataLoadingState
+        title={dataset.status === 'error' ? 'Processing Failed' : `Processing "${dataset.name}"`}
+        subtitle={dataset.status === 'error' ? (dataset.error || 'Unknown error') : undefined}
+        stage={dataset.status === 'error' ? undefined : 'processing'}
+      />
     );
   }
 
   const { stats } = dataset;
-  const primary = stats.primaryCol && stats.numericStats?.[stats.primaryCol];
+  const activeCol = selectedCol || stats.primaryCol;
+  const primary = activeCol && stats.numericStats?.[activeCol];
 
   const quickCards = [
     { label: 'Rows',     value: dataset.rowCount?.toLocaleString(),        icon: 'table_rows' },
     { label: 'Columns',  value: dataset.headers?.length,                    icon: 'view_column' },
     { label: 'Size',     value: formatBytes(dataset.size),                  icon: 'hard_drive' },
     { label: 'Parse',    value: `${dataset.parseTime ?? '—'} ms`,           icon: 'timer' },
-    { label: 'Nulls',    value: `${stats.qualityFlags.nullPct}%`,           icon: 'block',         hint: stats.qualityFlags.totalNullCount.toLocaleString() },
-    { label: 'Duplicates', value: `${stats.qualityFlags.duplicatePct}%`,    icon: 'content_copy',  hint: stats.qualityFlags.duplicateRowCount },
+    { label: 'Nulls',    value: `${stats.qualityFlags?.nullPct ?? 0}%`,           icon: 'block',         hint: (stats.qualityFlags?.totalNullCount ?? 0).toLocaleString() },
+    { label: 'Duplicates', value: `${stats.qualityFlags?.duplicatePct ?? 0}%`,    icon: 'content_copy',  hint: stats.qualityFlags?.duplicateRowCount ?? 0 },
   ];
 
   const shortcuts = [
@@ -218,10 +218,23 @@ function OverviewTab({ dataset, onOpenTab }) {
       {/* Primary column callout */}
       {primary && (
         <section className="rounded-xl bg-surface-container-high p-5 border border-outline-variant/10 space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Primary column</p>
-              <h3 className="font-headline text-lg font-bold">{stats.primaryCol}</h3>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <p className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Column Stats</p>
+              {stats.numericColumns?.length > 1 && (
+                <select
+                  value={activeCol || ''}
+                  onChange={e => setSelectedCol(e.target.value)}
+                  className="bg-surface-container-lowest border border-outline-variant/20 text-xs rounded-lg px-3 py-1.5 text-on-surface font-medium focus:ring-2 focus:ring-primary cursor-pointer"
+                >
+                  {(stats.numericColumns || []).map(col => (
+                    <option key={col} value={col}>{col}</option>
+                  ))}
+                </select>
+              )}
+              {stats.numericColumns?.length <= 1 && (
+                <h3 className="font-headline text-sm font-bold">{activeCol}</h3>
+              )}
             </div>
             <button
               onClick={() => onOpenTab('visualize')}
@@ -230,7 +243,7 @@ function OverviewTab({ dataset, onOpenTab }) {
               Visualize <span className="material-symbols-outlined text-sm">arrow_forward</span>
             </button>
           </div>
-          <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             <Stat label="Mean"   value={compactNum(primary.mean)} accent />
             <Stat label="Median" value={compactNum(primary.median)} />
             <Stat label="σ"      value={compactNum(primary.stdDev)} />
@@ -271,7 +284,7 @@ function Stat({ label, value, accent }) {
   return (
     <div className="min-w-0 overflow-hidden">
       <span className="text-on-surface-variant text-[10px] uppercase tracking-widest font-bold">{label}</span>
-      <p className={`font-bold truncate ${accent ? 'text-primary' : 'text-on-surface'}`} title={value ?? '—'}>{value ?? '—'}</p>
+      <p className={`font-bold text-sm truncate ${accent ? 'text-primary' : 'text-on-surface'}`} title={value ?? '—'}>{value ?? '—'}</p>
     </div>
   );
 }
@@ -285,13 +298,14 @@ function formatBytes(bytes) {
 
 function compactNum(n) {
   if (n == null) return '—';
-  if (typeof n !== 'number') return String(n);
-  // Use compact notation for very large or very small numbers
+  if (typeof n === 'string') n = Number(n);
+  if (typeof n !== 'number' || isNaN(n)) return String(n);
+  // Use compact notation for large numbers
   if (Math.abs(n) >= 1_000_000) {
     return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(n);
   }
   if (Math.abs(n) >= 1000) {
-    return n.toLocaleString(undefined, { maximumFractionDigits: 1 });
+    return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(n);
   }
   return n.toLocaleString(undefined, { maximumFractionDigits: 3 });
 }
