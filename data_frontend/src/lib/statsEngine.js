@@ -148,6 +148,16 @@ function computeNumericStats(rows, headers, columnTypes) {
     // Coefficient of variation
     const cv = m !== 0 ? round(Math.abs(sd / m) * 100, 2) : null;
 
+    // Excess kurtosis (Fisher's definition, normal = 0)
+    let kurtosis = 0;
+    if (vals.length >= 4 && sd > 0) {
+      const n = vals.length;
+      const sum4 = vals.reduce((sum, x) => sum + ((x - m) / sd) ** 4, 0);
+      const raw = (n * (n + 1)) / ((n - 1) * (n - 2) * (n - 3)) * sum4;
+      const correction = (3 * (n - 1) ** 2) / ((n - 2) * (n - 3));
+      kurtosis = round(raw - correction, 4);
+    }
+
     stats[col] = {
       mean: round(m),
       median: round(med),
@@ -160,6 +170,7 @@ function computeNumericStats(rows, headers, columnTypes) {
       q3: round(q3),
       iqr: round(iqr),
       skewness,
+      kurtosis,
       sum: round(vals.reduce((a, b) => a + b, 0)),
       nonNullCount: vals.length,
       nullCount: rows.length - vals.length,

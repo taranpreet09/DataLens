@@ -28,7 +28,14 @@ async function request(endpoint, options = {}) {
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    throw new Error(data.message || `Request failed (${res.status})`);
+    const errMessage = typeof data.message === 'string'
+      ? data.message
+      : (data.message ? JSON.stringify(data.message) : `Request failed (${res.status})`);
+    const err = new Error(errMessage);
+    err.code = data.code;
+    err.retryable = data.retryable;
+    err.retryAfterSeconds = data.retryAfterSeconds;
+    throw err;
   }
 
   return data;
@@ -125,6 +132,7 @@ export const datasetsApi = {
     return request('/api/datasets/upload', { method: 'POST', body: formData });
   },
   delete: (id) => request(`/api/datasets/${id}`, { method: 'DELETE' }),
+  reprocess: (id) => request(`/api/datasets/${id}/reprocess`, { method: 'POST' }),
 };
 
 // ─── Collaboration API ────────────────────────────────────────────────────────

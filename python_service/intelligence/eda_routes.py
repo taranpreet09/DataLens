@@ -53,7 +53,10 @@ def eda_profile(req: EdaRequest) -> dict[str, Any]:
     try:
         df = pd.DataFrame(req.rows, columns=req.headers)
         for col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="ignore")
+            converted = pd.to_numeric(df[col], errors="coerce")
+            # Only apply numeric conversion if the column had numeric data
+            if not converted.isna().all():
+                df[col] = converted
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -66,22 +69,35 @@ def eda_profile(req: EdaRequest) -> dict[str, Any]:
     except RuntimeError as exc:
         raise HTTPException(
             status_code=503,
-            detail={
-                "code": "PYTHON_UNAVAILABLE",
-                "message": str(exc),
-                "retryable": False,
-            },
+            detail=str(exc),
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
     # ── Plots ─────────────────────────────────────────────────────────────────
     plots: dict[str, str] = {}
+    plot_descriptions: dict[str, str] = {}
     if opts.includePlots:
         try:
             plots = render_plots(df, max_plots=12)
+            # Generate one-line descriptions for each chart
+            plot_desc_map = {
+                "correlation_heatmap": "Shows linear relationships between all analytical variables — darker red/blue = stronger correlation.",
+                "missing_heatmap": "Visualizes pattern of missing data across columns — white = missing value.",
+                "scatter_salary_performance": "Tests whether higher compensation correlates with better performance scores.",
+                "scatter_experience_salary": "Shows how salary scales with years of experience.",
+                "boxplot_salary_dept": "Compares salary distributions across departments — reveals pay equity gaps.",
+            }
+            for key in plots:
+                if key in plot_desc_map:
+                    plot_descriptions[key] = plot_desc_map[key]
+                elif key.startswith("dist_"):
+                    col_name = key[5:]
+                    plot_descriptions[key] = f"Distribution shape of {col_name} — shows spread, skew, and concentration."
+                elif key.startswith("bar_"):
+                    col_name = key[4:]
+                    plot_descriptions[key] = f"Top categories in {col_name} ranked by frequency."
         except Exception:
-            # Plots are best-effort — don't fail the whole request.
             plots = {}
 
     elapsed_ms = int((time.time() - t0) * 1000)
@@ -89,6 +105,7 @@ def eda_profile(req: EdaRequest) -> dict[str, Any]:
     return {
         "profile": profile,
         "plots": plots,
+        "plotDescriptions": plot_descriptions,
         "samplingApplied": sampling_applied,
         "elapsedMs": elapsed_ms,
     }

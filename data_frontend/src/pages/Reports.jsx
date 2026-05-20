@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useDataset } from '../context/DatasetContext';
 import { exportReportToPDF } from '../lib/pdfExport';
+import { datasetsApi } from '../lib/api';
 import CorrelationHeatmap from '../components/charts/CorrelationHeatmap';
 import QualityBadge from '../components/ui/QualityBadge';
 import QualityFlagChips from '../components/ui/QualityFlagChips';
@@ -13,6 +14,7 @@ import ExcelExportButton from '../components/ui/ExcelExportButton';
 export default function Reports() {
   const { activeDataset, datasets, setActive } = useDataset();
   const [isExporting, setIsExporting] = useState(false);
+  const [isReprocessing, setIsReprocessing] = useState(false);
   const ds = activeDataset;
   const stats = ds?.stats;
 
@@ -28,6 +30,20 @@ export default function Reports() {
       alert(`Failed to generate PDF: ${e.message || String(e)}`);
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleReprocess = async () => {
+    if (isReprocessing || !ds?.dbId) return;
+    setIsReprocessing(true);
+    try {
+      await datasetsApi.reprocess(ds.dbId);
+      // Reload page to pick up fresh stats from the server
+      window.location.reload();
+    } catch (e) {
+      console.error('Reprocess Error:', e);
+      alert(`Reprocess failed: ${e.message || String(e)}`);
+      setIsReprocessing(false);
     }
   };
 
@@ -54,14 +70,27 @@ export default function Reports() {
               : 'Upload a dataset from the dashboard to generate reports.'}
           </p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 flex-wrap">
           {stats && <QualityBadge score={stats.qualityScore} />}
+          {ds?.dbId && (
+            <button
+              onClick={handleReprocess}
+              disabled={isReprocessing}
+              className="print:hidden bg-surface-container-high hover:bg-surface-bright text-on-surface-variant hover:text-on-surface font-semibold px-4 rounded-lg flex items-center gap-2 transition-all active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-wait h-[52px] border border-outline-variant/20"
+              title="Recompute statistics from the raw data"
+            >
+              <span className="material-symbols-outlined text-sm">
+                {isReprocessing ? 'hourglass_empty' : 'refresh'}
+              </span>
+              {isReprocessing ? 'Recomputing...' : 'Recompute Stats'}
+            </button>
+          )}
           {ds && <ExcelExportButton dataset={ds} />}
           {ds && (
             <button
               onClick={handleExport}
               disabled={isExporting}
-              className="print:hidden bg-primary hover:bg-primary-fixed-dim text-on-primary-container font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-transform active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-wait">
+              className="print:hidden bg-primary hover:bg-primary-fixed-dim text-on-primary-container font-semibold px-4 rounded-lg flex items-center gap-2 transition-transform active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-wait h-[52px]">
               <span className="material-symbols-outlined text-sm">
                 {isExporting ? 'hourglass_empty' : 'picture_as_pdf'}
               </span>
@@ -98,10 +127,16 @@ export default function Reports() {
         <div id="report-content" className="space-y-6 lg:space-y-8">
           
           {/* 🤖 AI Narrative Panel */}
-          <NarrativePanel datasetId={ds.dbId || ds.id} initialNarrative={ds.narrative} />
+          {ds.dbId && <NarrativePanel datasetId={ds.dbId} initialNarrative={ds.narrative} />}
+          {!ds.dbId && (
+            <div className="bg-surface-container-low rounded-2xl border border-outline-variant/10 p-6 flex items-center gap-3 text-on-surface-variant">
+              <span className="material-symbols-outlined text-xl opacity-50">cloud_off</span>
+              <p className="text-sm">AI features require backend sync. Re-upload this file or restart the server to enable.</p>
+            </div>
+          )}
 
           {/* 📊 EDA Report Panel */}
-          <EDAReportPanel datasetId={ds.dbId || ds.id} cachedReport={ds.edaReport} />
+          {ds.dbId && <EDAReportPanel datasetId={ds.dbId} cachedReport={ds.edaReport} datasetRowCount={ds.rowCount} />}
 
           {/* 🔍 Executive Summary Panel */}
           <div className="bg-surface-container-low rounded-2xl border border-primary/20 p-6 lg:p-8 shadow-xl shadow-primary/5">
@@ -243,9 +278,9 @@ export default function Reports() {
                             <span className={Math.abs(s.skewness ?? 0) > 0.5 ? 'text-amber-400 font-bold' : ''}>{s.skewness ?? '—'}</span>
                           </td>
                           <td className="px-5 py-4 font-mono">
-                            <span className={Math.abs(s.kurtosis ?? 0) > 2 ? 'text-amber-400 font-bold' : ''}>{s.kurtosis ?? '—'}</span>
+                            <span className={Math.abs(s.kurtosis ?? s.excessKurtosis ?? 0) > 2 ? 'text-amber-400 font-bold' : ''}>{s.kurtosis ?? s.excessKurtosis ?? '—'}</span>
                           </td>
-                          <td className="px-5 py-4 font-mono">{s.coefficientOfVariation != null ? (s.coefficientOfVariation * 100).toFixed(1) : (s.cv ?? '—')}</td>
+                          <td className="px-5 py-4 font-mono">{s.coefficientOfVariation != null ? (s.coefficientOfVariation * 100).toFixed(1) : (s.cv != null ? s.cv : (s.mean && s.stdDev ? (Math.abs(s.stdDev / s.mean) * 100).toFixed(1) : '—'))}</td>
                           <td className="px-5 py-4 font-mono">
                             <span className={s.zscoreOutlierCount > 0 ? 'text-error font-bold' : 'text-secondary'}>{s.zscoreOutlierCount}</span>
                           </td>

@@ -102,6 +102,45 @@ export function renderMarkdown(md) {
       continue;
     }
 
+    // ── Tables (pipe-delimited) ───────────────────────────────────────────
+    if (/^\|.+\|/.test(line)) {
+      const tableRows = [];
+      while (i < lines.length && /^\|.+\|/.test(lines[i])) {
+        tableRows.push(lines[i]);
+        i++;
+      }
+      if (tableRows.length >= 2) {
+        // First row = header, second row = separator (---|---), rest = body
+        const parseRow = (row) =>
+          row.split('|').slice(1, -1).map(cell => cell.trim());
+
+        const headerCells = parseRow(tableRows[0]);
+        const isSeparator = (row) => /^\|[\s\-:|]+\|$/.test(row);
+        const startBody = isSeparator(tableRows[1]) ? 2 : 1;
+
+        let html = '<table><thead><tr>';
+        for (const cell of headerCells) {
+          html += `<th>${applyInline(cell)}</th>`;
+        }
+        html += '</tr></thead><tbody>';
+
+        for (let r = startBody; r < tableRows.length; r++) {
+          const cells = parseRow(tableRows[r]);
+          html += '<tr>';
+          for (const cell of cells) {
+            html += `<td>${applyInline(cell)}</td>`;
+          }
+          html += '</tr>';
+        }
+        html += '</tbody></table>';
+        parts.push(html);
+      } else {
+        // Single pipe line — treat as paragraph
+        parts.push(`<p>${applyInline(tableRows[0])}</p>`);
+      }
+      continue;
+    }
+
     // ── Blockquote ────────────────────────────────────────────────────────
     if (line.startsWith('> ')) {
       const bqLines = [];

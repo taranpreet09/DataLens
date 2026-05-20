@@ -4,9 +4,9 @@ export default function QualityBadge({ score }) {
   const label = score >= 80 ? 'Excellent' : score >= 50 ? 'Moderate' : 'Poor';
 
   return (
-    <div className={`inline-flex items-center gap-2.5 px-4 py-2 rounded-xl border ${bg}`}>
-      <div className="relative w-10 h-10">
-        <svg viewBox="0 0 36 36" className="w-10 h-10 -rotate-90">
+    <div className={`inline-flex items-center gap-2.5 px-4 h-[52px] rounded-lg border ${bg}`}>
+      <div className="relative w-9 h-9">
+        <svg viewBox="0 0 36 36" className="w-9 h-9 -rotate-90">
           <circle cx="18" cy="18" r="15.5" fill="none" stroke="currentColor" strokeWidth="3" className="text-surface-container-highest" />
           <circle cx="18" cy="18" r="15.5" fill="none" stroke="currentColor" strokeWidth="3"
             strokeDasharray={`${(score / 100) * 97.4} 97.4`}

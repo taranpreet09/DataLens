@@ -36,7 +36,7 @@ export default function ExcelExportButton({ dataset }) {
       <button
         onClick={() => setShowOptions(!showOptions)}
         disabled={exporting}
-        className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 text-white font-semibold rounded-lg text-sm transition-all disabled:opacity-50 active:scale-95"
+        className="flex items-center gap-2 px-4 h-[52px] bg-green-600 hover:bg-green-500 text-white font-semibold rounded-lg text-sm transition-all disabled:opacity-50 active:scale-95"
       >
         <span className="material-symbols-outlined text-sm">
           {exporting ? 'hourglass_empty' : 'table_view'}

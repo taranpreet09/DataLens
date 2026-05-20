@@ -4,6 +4,90 @@ import path from 'path';
 import { PARSED_DIR } from '../config/storage.js';
 
 /**
+ * Parse an Excel file (.xlsx/.xls) and write to JSONL format.
+ * Uses the xlsx library to read the first sheet and convert to row objects.
+ *
+ * @param {string} filePath - Path to the uploaded Excel file
+ * @param {string} datasetId - Unique dataset ID for naming the output file
+ * @param {function} onProgress - Callback (rowsProcessed) for progress updates
+ * @returns {{ headers, rowCount, parsedFilePath, sampleRows }}
+ */
+export async function streamParseExcel(filePath, datasetId, onProgress = null) {
+  const XLSX = await import('xlsx');
+  const outputPath = path.join(PARSED_DIR, `${datasetId}.jsonl`);
+
+  // Read workbook (streaming mode for large files)
+  const workbook = XLSX.readFile(filePath, { type: 'file', cellDates: true });
+  const sheetName = workbook.SheetNames[0];
+  const sheet = workbook.Sheets[sheetName];
+
+  // Convert to array of row objects
+  const rows = XLSX.utils.sheet_to_json(sheet, { defval: null });
+
+  if (rows.length === 0) {
+    return { headers: [], rowCount: 0, parsedFilePath: outputPath, sampleRows: [] };
+  }
+
+  const headers = Object.keys(rows[0]);
+  const sampleRows = [];
+  const SAMPLE_SIZE = 1000;
+  const writeStream = fs.createWriteStream(outputPath);
+
+  for (let i = 0; i < rows.length; i++) {
+    // Cast numeric strings to numbers
+    const row = {};
+    for (const h of headers) {
+      const val = rows[i][h];
+      if (val === null || val === undefined || val === '') {
+        row[h] = null;
+      } else if (typeof val === 'number') {
+        row[h] = val;
+      } else {
+        const num = Number(val);
+        row[h] = isNaN(num) ? val : num;
+      }
+    }
+
+    writeStream.write(JSON.stringify(row) + '\n');
+
+    if (i < SAMPLE_SIZE) {
+      sampleRows.push(row);
+    }
+
+    if (onProgress && (i + 1) % 5000 === 0) {
+      onProgress(i + 1);
+    }
+  }
+
+  return new Promise((resolve, reject) => {
+    writeStream.end(() => {
+      resolve({
+        headers,
+        rowCount: rows.length,
+        parsedFilePath: outputPath,
+        sampleRows,
+      });
+    });
+    writeStream.on('error', reject);
+  });
+}
+
+/**
+ * Detect file type and parse accordingly.
+ * @param {string} filePath - Path to the uploaded file
+ * @param {string} datasetId - Dataset ID
+ * @param {function} onProgress - Progress callback
+ * @returns {{ headers, rowCount, parsedFilePath, sampleRows }}
+ */
+export async function parseFile(filePath, datasetId, onProgress = null) {
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === '.xlsx' || ext === '.xls') {
+    return streamParseExcel(filePath, datasetId, onProgress);
+  }
+  return streamParseCSV(filePath, datasetId, onProgress);
+}
+
+/**
  * Stream-parse a CSV file. Handles files of any size without loading into memory.
  * Returns headers, rowCount, and writes parsed rows to a JSON Lines file on disk.
  *

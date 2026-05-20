@@ -81,10 +81,10 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     } catch (queueErr) {
       // If Redis/queue is unavailable, process synchronously (fallback)
       console.warn('⚠️  Job queue unavailable, processing synchronously:', queueErr.message);
-      const { streamParseCSV } = await import('../services/fileParser.js');
+      const { parseFile } = await import('../services/fileParser.js');
       const { computeAllStats } = await import('../services/statsEngine.js');
 
-      const { headers, rowCount, parsedFilePath, sampleRows } = await streamParseCSV(filePath, dataset._id.toString());
+      const { headers, rowCount, parsedFilePath, sampleRows } = await parseFile(filePath, dataset._id.toString());
       const stats = computeAllStats(headers, sampleRows.length > 0 ? sampleRows : []);
 
       await Dataset.findByIdAndUpdate(dataset._id, {
@@ -239,6 +239,57 @@ router.get('/:id/rows', async (req, res) => {
     res.json({ rows: [], pagination: { page, limit, total: 0, totalPages: 0 } });
   } catch (err) {
     res.status(500).json({ message: 'Could not fetch rows.' });
+  }
+});
+
+// ─── POST /:id/reprocess — Recompute stats on an existing dataset ────────────
+router.post('/:id/reprocess', async (req, res) => {
+  try {
+    const dataset = await Dataset.findOne({ _id: req.params.id, userId: req.userId });
+    if (!dataset) return res.status(404).json({ message: 'Dataset not found.' });
+
+    if (!dataset.parsedFilePath || !fs.existsSync(dataset.parsedFilePath)) {
+      return res.status(400).json({ message: 'No parsed data file found. Please re-upload the dataset.' });
+    }
+
+    const { readAllRows, stratifiedSample } = await import('../services/fileParser.js');
+    const { computeAllStats } = await import('../services/statsEngine.js');
+
+    const LARGE_DATASET_THRESHOLD = 50000;
+    const rowCount = dataset.rowCount || 0;
+
+    let statsRows;
+    if (rowCount > LARGE_DATASET_THRESHOLD) {
+      statsRows = await stratifiedSample(dataset.parsedFilePath, 30000, rowCount);
+    } else {
+      statsRows = await readAllRows(dataset.parsedFilePath);
+    }
+
+    const stats = computeAllStats(dataset.headers, statsRows);
+
+    // Scale absolute counts to full dataset size if sampled
+    if (rowCount > LARGE_DATASET_THRESHOLD && stats.totalNulls != null) {
+      const scaleFactor = rowCount / statsRows.length;
+      stats.totalNulls = Math.round(stats.totalNulls * scaleFactor);
+      stats.duplicateRowCount = Math.round((stats.duplicateRowCount ?? stats.dupeCount ?? 0) * scaleFactor);
+      stats.dupeCount = stats.duplicateRowCount;
+    }
+    stats.rowCount = rowCount;
+
+    await Dataset.findByIdAndUpdate(dataset._id, {
+      stats,
+      // Clear cached AI artifacts so they regenerate with fresh stats
+      narrative: null,
+      edaReport: null,
+    });
+
+    // Invalidate list cache
+    await cacheDel(`datasets:${req.userId}:*`);
+
+    res.json({ message: 'Stats recomputed successfully.', stats });
+  } catch (err) {
+    console.error('❌ Reprocess error:', err.message || err);
+    res.status(500).json({ message: 'Could not reprocess dataset.', error: err.message });
   }
 });
 

@@ -236,26 +236,47 @@ router.post('/:datasetId/eda', wrap(async (req, res) => {
 
   // Call Python EDA service.
   const { edaProfile } = await import('../services/pythonBridge.js');
-  const { profile, plots, samplingApplied } = await edaProfile(
+  const { profile, plots, plotDescriptions, samplingApplied: pythonSampling } = await edaProfile(
     dataset.headers,
     rows,
     { minimal: true, includePlots: true }
   );
 
-  // Generate LLM narrative from the profile summary.
-  const { generateNarrative } = await import('../services/narrativeService.js');
-  const narrativeResult = await generateNarrative({
-    dataset,
-    userId: req.userId,
-    sections: ['overview', 'schema', 'quality', 'distributions', 'correlations', 'outliers', 'recommendations', 'next_steps'],
-    tone: 'technical',
-  });
+  // Merge sampling info: Node-level sampling (to MAX_EDA_ROWS) + any Python-level sampling
+  const samplingApplied = dataset.rowCount > MAX_EDA_ROWS
+    ? {
+        applied: true,
+        originalRowCount: dataset.rowCount,
+        sampledRowCount: rows.length,
+        method: 'stratified',
+      }
+    : (pythonSampling || { applied: false });
+
+  // Generate LLM narrative from the profile summary (best-effort — don't fail EDA if LLM errors).
+  let narrativeResult = { sections: null, fullMarkdown: null };
+  try {
+    const { generateNarrative } = await import('../services/narrativeService.js');
+    narrativeResult = await generateNarrative({
+      dataset,
+      userId: req.userId,
+      sections: ['overview', 'insights', 'schema', 'quality', 'distributions', 'correlations', 'outliers', 'recommendations', 'next_steps'],
+      tone: 'technical',
+    });
+  } catch (narrativeErr) {
+    logEvent({
+      event: 'intelligence.eda.narrative_failed',
+      code: narrativeErr.code || 'UNKNOWN',
+      message: narrativeErr.message,
+      path: req.path,
+    });
+  }
 
   const generatedAt = new Date().toISOString();
   const edaReport = {
     etag,
     profile,
     plots,
+    plotDescriptions: plotDescriptions || {},
     narrative: narrativeResult.sections,
     fullMarkdown: narrativeResult.fullMarkdown,
     samplingApplied,

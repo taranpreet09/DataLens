@@ -179,6 +179,22 @@ export async function invokeModel({
     errorName: lastErr?.message?.slice(0, 100),
   });
 
+  // Detect rate limiting specifically so the frontend shows a friendly countdown
+  const errMsg = lastErr?.message || '';
+  const isRateLimit = errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('rate');
+
+  if (isRateLimit) {
+    // Try to extract retry delay from the error message
+    const retryMatch = errMsg.match(/retry in (\d+(?:\.\d+)?)\s*s/i);
+    const retryAfterSeconds = retryMatch ? Math.ceil(parseFloat(retryMatch[1])) : 60;
+
+    throw withCode(
+      'LLM_RATE_LIMITED',
+      'API rate limit exceeded. Please wait before trying again.',
+      { retryable: true, retryAfterSeconds }
+    );
+  }
+
   throw withCode(
     'LLM_ERROR',
     lastErr?.message || 'Gemini invocation failed after retries',

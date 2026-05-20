@@ -62,7 +62,7 @@ const datasetSchema = new mongoose.Schema(
     edaReport: { type: EdaReportSchema, default: null },
 
     // Sharing (Phase 6)
-    shareToken: { type: String, default: null, unique: true, sparse: true },
+    shareToken: { type: String, default: null },
     shareEnabled: { type: Boolean, default: false },
   },
   { timestamps: true }
@@ -71,6 +71,8 @@ const datasetSchema = new mongoose.Schema(
 // Index for fast user-scoped queries
 datasetSchema.index({ userId: 1, createdAt: -1 });
 datasetSchema.index({ status: 1 });
+// Sparse unique index for share tokens (allows multiple nulls)
+datasetSchema.index({ shareToken: 1 }, { unique: true, sparse: true });
 
 const Dataset = mongoose.model('Dataset', datasetSchema);
 export default Dataset;

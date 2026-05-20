@@ -23,8 +23,29 @@ async function callPython(endpoint, body) {
     });
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Unknown error' }));
-      throw new Error(err.detail || `Python service error: ${res.status}`);
+      const errBody = await res.json().catch(() => ({ detail: 'Unknown error' }));
+      // FastAPI can return detail as a string, object, or array
+      let message;
+      if (typeof errBody.detail === 'string') {
+        message = errBody.detail;
+      } else if (Array.isArray(errBody.detail)) {
+        // Pydantic validation errors
+        message = errBody.detail.map(e => e.msg || e.message || JSON.stringify(e)).join('; ');
+      } else if (errBody.detail && typeof errBody.detail === 'object') {
+        // Structured error from Python: { code, message, retryable }
+        message = errBody.detail.message || JSON.stringify(errBody.detail);
+      } else {
+        message = `Python service error: ${res.status}`;
+      }
+      const error = new Error(message);
+      // Propagate structured code if available
+      if (errBody.detail?.code) {
+        error.code = errBody.detail.code;
+      }
+      if (errBody.detail?.retryable != null) {
+        error.retryable = errBody.detail.retryable;
+      }
+      throw error;
     }
 
     return await res.json();

@@ -88,19 +88,91 @@ export function nlQueryNarrative(intent, resultSummary) {
  */
 export function narrativeMessages(context, sections, tone) {
   const toneGuide = tone === 'technical'
-    ? 'Write in a detailed, statistical style suitable for data scientists. Include specific numbers, statistical terms, and methodological notes.'
-    : 'Write in a business-friendly style suitable for executives. Focus on key insights and actionable findings. Avoid jargon.';
+    ? 'Use data-driven language with specific numbers. Keep it precise and actionable.'
+    : 'Use business-friendly language. Focus on impact and decisions. No jargon.';
 
-  const systemContent = `You are a data analysis expert writing a report narrative. ${toneGuide}
+  const systemContent = `You are a senior data analyst creating a stakeholder-ready report. ${toneGuide}
 
-Respond with ONLY a JSON object in this exact shape:
+═══ CRITICAL RULES ═══
+1. CONSISTENCY: Record counts, feature counts, and statistics MUST match across all sections. Do not contradict yourself. If you state "690,000 records" in Overview, every other section must reference the same number.
+2. CORRELATION THRESHOLD: Do NOT generate business conclusions from correlations with |r| < 0.10. Instead write: "Very weak relationship (r = X). Avoid interpretation."
+3. FORMAT: Replace all narrative paragraphs with structured triplets:
+   - **Observation:** what the data shows
+   - **Why it matters:** business context
+   - **Suggested action:** specific next step
+4. INSIGHTS DASHBOARD: The "insights" section must categorize findings as:
+   🟢 Positive findings
+   🟡 Neutral/monitoring items
+   🔴 Risk areas requiring action
+5. NO FILLER: Never write "further investigation required" or "warrants deeper analysis". Always specify WHAT to investigate, HOW, and WHO should do it.
+
+═══ REPORT STRUCTURE ═══
+
+## Overview
+- 3-4 bullet KPIs with values
+- One sentence on dataset scope
+
+## Insights
+🟢 **Positive:**
+- (list positive findings)
+
+🟡 **Neutral:**
+- (list neutral observations)
+
+🔴 **Risks:**
+- (list risk areas with severity)
+
+## Quality
+| Issue | Severity | Impact | Recommendation |
+|-------|----------|--------|----------------|
+Include: missing data, low cardinality, format issues, identifier problems
+
+## Distributions
+For top 3-4 variables:
+**Variable Name** (mean: X, range: Y-Z)
+- **Observation:** distribution shape and characteristics
+- **Why it matters:** business context
+- **Suggested action:** what to do with this information
+
+## Correlations
+| Variables | r | Strength | Interpretation |
+|-----------|---|----------|----------------|
+ONLY include |r| >= 0.10 with business interpretation.
+For ALL correlations with |r| < 0.10, write ONE line: "All other correlations are below |0.10| — too weak for business conclusions."
+
+## Outliers
+For each:
+- **Observation:** what outlier was detected
+- **Why it matters:** potential data quality or business issue
+- **Suggested action:** specific validation step
+
+## Recommendations
+**Immediate (1-2 weeks):**
+- specific action items
+
+**Medium-term (1-3 months):**
+- deeper analysis items
+
+**Long-term (3-12 months):**
+- strategic changes
+
+## Next Steps
+Numbered roadmap: Data Cleaning → Feature Engineering → Hypothesis Testing → Modeling
+
+═══ WRITING RULES ═══
+- NO paragraphs longer than 2 lines
+- Bullets and tables ONLY
+- No repeated statistics across sections
+- Each section: 80-200 words max
+- Skimmable in under 2 minutes
+
+Respond with ONLY a JSON object:
 {
   "sections": {
-    "<section_name>": "<markdown text for that section>"
+    "<section_name>": "<markdown text>"
   }
 }
-
-Include every section listed in the user message. Do not add extra keys. The JSON must be directly parseable — no markdown code fences or surrounding text.`;
+No code fences, no extra text.`;
 
   const userContent = `Dataset context:\n${JSON.stringify(context, null, 2)}\n\nWrite sections: ${sections.join(', ')}`;
 
@@ -123,18 +195,79 @@ Include every section listed in the user message. Do not add extra keys. The JSO
  * @returns {Array<{ role: string, content: string }>}
  */
 export function edaNarrativeMessages(profileSummary, sections) {
-  const systemContent = `You are a data scientist writing a technical Exploratory Data Analysis (EDA) narrative based on a ydata-profiling report summary.
+  const systemContent = `You are a senior data scientist creating a professional EDA report.
 
-Write in a detailed, technical style. Reference specific statistics, distributions, and data quality findings from the profile.
+═══ CRITICAL RULES ═══
+1. CONSISTENCY: All numbers (rows, columns, percentages) must be consistent across every section. Never contradict yourself.
+2. CORRELATION THRESHOLD: Do NOT draw business conclusions from |r| < 0.10. Write: "Very weak relationship (r = X). Avoid interpretation."
+3. FORMAT: Every finding must use:
+   - **Observation:** factual data point
+   - **Why it matters:** business relevance
+   - **Suggested action:** specific step (never "investigate further")
+4. INSIGHTS: Categorize all findings with 🟢 🟡 🔴 severity indicators.
+5. CHARTS: For each visualization mentioned, include one-line explanation of what it reveals.
 
-Respond with ONLY a JSON object in this exact shape:
+═══ REPORT STRUCTURE ═══
+
+## Overview
+- Dataset: X rows × Y columns, Z MB
+- Key stats in 3-4 bullets
+
+## Insights
+🟢 **Positive:**
+- findings that indicate healthy data or operations
+
+🟡 **Neutral:**
+- observations requiring monitoring
+
+🔴 **Risks:**
+- issues requiring immediate action
+
+## Schema
+| Column | Type | Unique | Notes |
+|--------|------|--------|-------|
+
+## Quality
+| Issue | Severity | Impact | Fix |
+|-------|----------|--------|-----|
+
+## Distributions
+**Variable** — Shape, Mean, Std
+- **Observation:** what it shows
+- **Why it matters:** context
+- **Suggested action:** next step
+
+## Correlations
+| Pair | r | Assessment |
+|------|---|------------|
+ONLY include |r| >= 0.10 with interpretation.
+For ALL weaker correlations: "Remaining correlations are below |0.10| — insufficient for business conclusions."
+
+## Outliers
+- **Observation:** outlier detected in X
+- **Why it matters:** impact
+- **Suggested action:** validation step
+
+## Recommendations
+**Immediate (1-2 weeks):** actionable items
+**Medium-term (1-3 months):** analysis items
+**Long-term (3-12 months):** strategic items
+
+## Next Steps
+1. Data prep → 2. Feature engineering → 3. Hypothesis testing → 4. Modeling
+
+═══ RULES ═══
+- Bullets and tables ONLY — zero paragraphs
+- 50-150 words per section
+- Lead with most important finding
+- Specific actions always (WHAT, HOW, WHO)
+
+Respond with ONLY valid JSON:
 {
   "sections": {
-    "<section_name>": "<markdown text for that section>"
+    "<section_name>": "<markdown>"
   }
-}
-
-Include every section listed in the user message. Do not add extra keys. The JSON must be directly parseable — no markdown code fences or surrounding text.`;
+}`;
 
   const userContent = `Profile summary:\n${JSON.stringify(profileSummary, null, 2)}\n\nWrite sections: ${sections.join(', ')}`;
 

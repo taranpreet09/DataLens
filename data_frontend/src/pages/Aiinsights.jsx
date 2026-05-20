@@ -329,11 +329,11 @@ export default function AIInsights() {
       {ds && stats && (
         <>
           {/* NL Query Box — AI-powered free-form questions */}
-          <NLQueryBox datasetId={ds.dbId || ds.id} />
+          {ds.dbId && <NLQueryBox datasetId={ds.dbId} />}
 
           {/* Text NLP Panel — per-column sentiment/topics/keywords */}
-          {stats?.textColumns?.length > 0 && (
-            <TextNlpPanel datasetId={ds.dbId || ds.id} textColumns={stats.textColumns} />
+          {ds.dbId && stats?.textColumns?.length > 0 && (
+            <TextNlpPanel datasetId={ds.dbId} textColumns={stats.textColumns} />
           )}
 
           {/* Search / Filter bar */}

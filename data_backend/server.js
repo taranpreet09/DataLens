@@ -98,6 +98,19 @@ async function start() {
       serverSelectionTimeoutMS: 5000,
     });
     console.log('✅ Connected to MongoDB:', process.env.MONGO_URI);
+
+    // Fix stale indexes (drop non-sparse shareToken unique index if it exists)
+    try {
+      const collection = mongoose.connection.collection('datasets');
+      const indexes = await collection.indexes();
+      const badIndex = indexes.find(idx =>
+        idx.key?.shareToken && idx.unique && !idx.sparse
+      );
+      if (badIndex) {
+        await collection.dropIndex(badIndex.name);
+        console.log('🔧 Dropped non-sparse shareToken index, will be recreated as sparse');
+      }
+    } catch { /* index doesn't exist or already correct — fine */ }
   } catch (err) {
     console.error('⚠️  MongoDB not available:', err.message);
     console.log('');

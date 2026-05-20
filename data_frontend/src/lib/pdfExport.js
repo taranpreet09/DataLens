@@ -152,15 +152,51 @@ export async function exportReportToPDF(ds, options = {}, filename) {
   }
 
   // ─── PAGE 5: Anomalies & Data Quality ──────────────────────────────────
-  if (stats.qualityFlags && stats.qualityFlags.length > 0) {
+  const qualityFlagsList = Array.isArray(stats.qualityFlags)
+    ? stats.qualityFlags
+    : (stats.qualityFlags?.flags || []);
+
+  // Data Quality Summary section
+  {
+    pdf.addPage();
+    pdf.setFontSize(18);
+    pdf.setTextColor(0, 0, 0);
+    pdf.text('Data Quality Summary', 14, 20);
+
+    const qf = typeof stats.qualityFlags === 'object' && !Array.isArray(stats.qualityFlags)
+      ? stats.qualityFlags
+      : { totalNullCount: 0, nullPct: 0, duplicateRowCount: 0, duplicatePct: 0, emptyRowCount: 0 };
+
+    const qualitySummaryBody = [
+      ['Quality Score', `${stats.qualityScore ?? 'N/A'} / 100`],
+      ['Total Records', (stats.rowCount || 0).toLocaleString()],
+      ['Null Cells', `${(qf.totalNullCount || 0).toLocaleString()} (${qf.nullPct || 0}%)`],
+      ['Duplicate Rows', `${(qf.duplicateRowCount || 0).toLocaleString()} (${qf.duplicatePct || 0}%)`],
+      ['Empty Rows', `${qf.emptyRowCount || 0}`],
+      ['Total Columns', `${stats.headers?.length || 0}`],
+      ['Numeric Columns', `${stats.numericColumns?.length || 0}`],
+      ['Categorical Columns', `${stats.categoricalColumns?.length || 0}`],
+    ];
+
+    autoTable(pdf, {
+      startY: 28,
+      head: [['Metric', 'Value']],
+      body: qualitySummaryBody,
+      theme: 'grid',
+      headStyles: { fillColor: primaryColor },
+      columnStyles: { 0: { fontStyle: 'bold' } },
+    });
+  }
+
+  if (qualityFlagsList.length > 0) {
     pdf.addPage();
     pdf.setFontSize(18);
     pdf.text('Detected Anomalies & Quality Flags', 14, 20);
     
-    const qBody = stats.qualityFlags.map(q => {
+    const qBody = qualityFlagsList.map(q => {
       return [
         q.column || 'Global (Cross-column)', 
-        q.issue, 
+        q.detail || q.issue || q.type || '', 
         q.severity ? q.severity.toUpperCase() : 'INFO'
       ];
     });

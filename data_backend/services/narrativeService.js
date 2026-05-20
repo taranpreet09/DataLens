@@ -17,6 +17,7 @@ import Dataset from '../models/Dataset.js';
 
 const DEFAULT_SECTIONS = [
   'overview',
+  'insights',
   'quality',
   'trends',
   'correlations',

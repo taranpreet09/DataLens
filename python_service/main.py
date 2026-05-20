@@ -84,7 +84,10 @@ def rows_to_dataframe(headers: list[str], rows: list[dict]) -> pd.DataFrame:
     df = pd.DataFrame(rows, columns=headers)
     # Convert numeric columns
     for col in df.columns:
-        df[col] = pd.to_numeric(df[col], errors="ignore")
+        converted = pd.to_numeric(df[col], errors="coerce")
+        # Only apply conversion if the column actually had numeric data
+        if not converted.isna().all():
+            df[col] = converted
     return df
 
 

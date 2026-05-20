@@ -1,6 +1,6 @@
 import { Queue, Worker } from 'bullmq';
 import { getRedisConnection, cacheDel } from '../config/redis.js';
-import { streamParseCSV, readAllRows, stratifiedSample } from './fileParser.js';
+import { parseFile, readAllRows, stratifiedSample } from './fileParser.js';
 import { computeAllStats } from './statsEngine.js';
 import Dataset from '../models/Dataset.js';
 
@@ -80,10 +80,10 @@ async function processJob(job) {
   };
 
   try {
-    // Stage 1: Parse CSV
+    // Stage 1: Parse file (CSV, TSV, or Excel)
     emitProgress('parsing', 10, 'Parsing file...');
 
-    const parseResult = await streamParseCSV(filePath, datasetId, (rowsProcessed) => {
+    const parseResult = await parseFile(filePath, datasetId, (rowsProcessed) => {
       const pct = Math.min(40, 10 + Math.round((rowsProcessed / 100000) * 30));
       emitProgress('parsing', pct, `Parsed ${rowsProcessed.toLocaleString()} rows...`);
     });
@@ -97,13 +97,24 @@ async function processJob(job) {
     let statsRows;
     if (rowCount > LARGE_DATASET_THRESHOLD) {
       emitProgress('stats', 50, `Large dataset (${rowCount.toLocaleString()} rows). Sampling for stats...`);
-      statsRows = await stratifiedSample(parsedFilePath, 10000, rowCount);
+      statsRows = await stratifiedSample(parsedFilePath, 30000, rowCount);
     } else {
       statsRows = sampleRows.length === rowCount ? sampleRows : await readAllRows(parsedFilePath);
     }
 
     emitProgress('stats', 60, 'Computing statistics...');
     const stats = computeAllStats(headers, statsRows);
+
+    // For sampled stats, scale absolute counts to the full dataset size
+    if (rowCount > LARGE_DATASET_THRESHOLD && stats.totalNulls != null) {
+      const scaleFactor = rowCount / statsRows.length;
+      stats.totalNulls = Math.round(stats.totalNulls * scaleFactor);
+      stats.duplicateRowCount = Math.round((stats.duplicateRowCount ?? stats.dupeCount ?? 0) * scaleFactor);
+      stats.dupeCount = stats.duplicateRowCount;
+      // nullPct stays the same (it's already a percentage)
+    }
+    // Attach actual rowCount so stats reflect the full dataset
+    stats.rowCount = rowCount;
 
     emitProgress('stats', 85, 'Saving results...');
 

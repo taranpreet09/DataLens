@@ -136,6 +136,34 @@ export async function exportDatasetToExcel(dataset, options = {}) {
     xlsx.utils.book_append_sheet(wb, ws, 'Column Types');
   }
 
+  // Sheet 6: AI Narrative (if available)
+  if (dataset.narrative?.fullMarkdown) {
+    const narrativeText = dataset.narrative.fullMarkdown
+      .replace(/#{1,6}\s+/g, '')
+      .replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/[🟢🟡🔴]/g, '')
+      .trim();
+    const narrativeRows = narrativeText.split('\n').filter(l => l.trim()).map(l => [l.trim()]);
+    const ws = xlsx.utils.aoa_to_sheet([['AI Narrative Report'], [''], ...narrativeRows]);
+    ws['!cols'] = [{ wch: 100 }];
+    xlsx.utils.book_append_sheet(wb, ws, 'AI Narrative');
+  }
+
+  // Sheet 7: Quality Flags (if available)
+  if (stats?.qualityFlags?.flags?.length > 0) {
+    const flagHeaders = ['Type', 'Detail', 'Severity', 'Column'];
+    const flagRows = stats.qualityFlags.flags.map(f => [
+      f.type || '',
+      f.detail || '',
+      f.severity || 'info',
+      f.column || 'Global',
+    ]);
+    const ws = xlsx.utils.aoa_to_sheet([flagHeaders, ...flagRows]);
+    ws['!cols'] = [{ wch: 22 }, { wch: 50 }, { wch: 10 }, { wch: 20 }];
+    xlsx.utils.book_append_sheet(wb, ws, 'Quality Flags');
+  }
+
   // Generate and download
   const wbout = xlsx.write(wb, { bookType: 'xlsx', type: 'array' });
   const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
