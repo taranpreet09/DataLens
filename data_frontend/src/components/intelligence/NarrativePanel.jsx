@@ -18,7 +18,7 @@ export default function NarrativePanel({ datasetId, initialNarrative }) {
 
   // Determine if the error hides regenerate controls
   const hideRegenerate =
-    error?.code === 'BEDROCK_NOT_CONFIGURED' ||
+    error?.code === 'LLM_NOT_CONFIGURED' ||
     error?.code === 'INTELLIGENCE_DISABLED';
 
   // Load on mount if no initial narrative was provided

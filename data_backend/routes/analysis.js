@@ -4,7 +4,7 @@ import authMiddleware from '../middleware/auth.js';
 import Dataset from '../models/Dataset.js';
 import { readAllRows, stratifiedSample } from '../services/fileParser.js';
 import { computeAllStats } from '../services/statsEngine.js';
-import { tTest, oneSampleTTest, chiSquareTest, anova, normalityTest, confidenceInterval, correlationSignificance } from '../services/statisticalTests.js';
+import { tTest, oneSampleTTest, chiSquareTest, anova, normalityTest, confidenceInterval, correlationSignificance, mannWhitneyU, pairedTTest } from '../services/statisticalTests.js';
 import { inferSemanticTypes, findFuzzyDuplicates, generateValidationRules, detectColumnDependencies } from '../services/dataQuality.js';
 import { isPythonAvailable, imputeMissing, clusterData, pcaReduce, featureImportance } from '../services/pythonBridge.js';
 import { cacheGet, cacheSet } from '../config/redis.js';
@@ -198,6 +198,90 @@ router.post('/:id/test/chi-square', async (req, res) => {
     res.json({ test: 'chi_square', column1, column2, result });
   } catch (err) {
     res.status(500).json({ message: 'Chi-square test failed: ' + err.message });
+  }
+});
+
+// ─── POST /:id/test/mann-whitney — Mann-Whitney U test ────────────────────────
+router.post('/:id/test/mann-whitney', async (req, res) => {
+  try {
+    const { numericColumn, groupColumn, group1Value, group2Value } = req.body;
+    if (!numericColumn || !groupColumn) {
+      return res.status(400).json({ message: 'numericColumn and groupColumn are required.' });
+    }
+
+    const dataset = await Dataset.findOne({ _id: req.params.id, userId: req.userId });
+    if (!dataset) return res.status(404).json({ message: 'Dataset not found.' });
+
+    const rows = await getDatasetRows(dataset, 100000);
+
+    const groups = {};
+    for (const row of rows) {
+      const groupVal = String(row[groupColumn] ?? '');
+      if (!groups[groupVal]) groups[groupVal] = [];
+      const numVal = Number(row[numericColumn]);
+      if (!isNaN(numVal)) groups[groupVal].push(numVal);
+    }
+
+    const groupKeys = Object.keys(groups).filter(k => groups[k].length >= 3);
+    if (groupKeys.length < 2) {
+      return res.status(400).json({ message: 'Need at least 2 groups with 3+ values each.' });
+    }
+
+    const g1Key = group1Value || groupKeys[0];
+    const g2Key = group2Value || groupKeys[1];
+    const g1 = groups[g1Key] || [];
+    const g2 = groups[g2Key] || [];
+
+    if (g1.length < 3 || g2.length < 3) {
+      return res.status(400).json({ message: 'Each group needs at least 3 values.' });
+    }
+
+    const result = mannWhitneyU(g1, g2);
+    res.json({
+      test: 'mann_whitney_u',
+      column: numericColumn,
+      groups: { [g1Key]: { n: g1.length }, [g2Key]: { n: g2.length } },
+      result,
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Mann-Whitney U test failed: ' + err.message });
+  }
+});
+
+// ─── POST /:id/test/paired-ttest — Paired t-test ─────────────────────────────
+router.post('/:id/test/paired-ttest', async (req, res) => {
+  try {
+    const { column1, column2 } = req.body;
+    if (!column1 || !column2) {
+      return res.status(400).json({ message: 'column1 and column2 are required (before/after measurements).' });
+    }
+
+    const dataset = await Dataset.findOne({ _id: req.params.id, userId: req.userId });
+    if (!dataset) return res.status(404).json({ message: 'Dataset not found.' });
+
+    const rows = await getDatasetRows(dataset, 100000);
+
+    const before = [], after = [];
+    for (const row of rows) {
+      const v1 = Number(row[column1]);
+      const v2 = Number(row[column2]);
+      if (!isNaN(v1) && !isNaN(v2)) { before.push(v1); after.push(v2); }
+    }
+
+    if (before.length < 2) {
+      return res.status(400).json({ message: 'Need at least 2 paired numeric values.' });
+    }
+
+    const result = pairedTTest(before, after);
+    res.json({
+      test: 'paired_ttest',
+      column1,
+      column2,
+      n: before.length,
+      result,
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Paired t-test failed: ' + err.message });
   }
 });
 

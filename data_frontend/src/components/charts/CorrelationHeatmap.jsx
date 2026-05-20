@@ -36,9 +36,11 @@ function getStrength(r) {
   return 'Negligible';
 }
 
-export default function CorrelationHeatmap({ matrix, columns, insights = [] }) {
+export default function CorrelationHeatmap({ matrix, spearmanMatrix, columns, insights = [] }) {
   const [hover, setHover] = useState(null);
+  const [method, setMethod] = useState('pearson'); // 'pearson' or 'spearman'
 
+  const activeMatrix = method === 'spearman' && spearmanMatrix ? spearmanMatrix : matrix;
   const cols = (columns || []).slice(0, 8);
 
   if (!matrix || cols.length < 2) {
@@ -52,6 +54,31 @@ export default function CorrelationHeatmap({ matrix, columns, insights = [] }) {
 
   return (
     <div className="space-y-5">
+      {/* Method Toggle */}
+      <div className="flex items-center gap-1 p-0.5 rounded-lg bg-surface-container w-fit">
+        <button
+          onClick={() => setMethod('pearson')}
+          className={`px-3 py-1 rounded-md text-[10px] font-semibold tracking-wide transition-all ${
+            method === 'pearson'
+              ? 'bg-primary/20 text-primary shadow-sm'
+              : 'text-on-surface-variant hover:text-on-surface'
+          }`}
+        >
+          Pearson
+        </button>
+        <button
+          onClick={() => setMethod('spearman')}
+          disabled={!spearmanMatrix}
+          className={`px-3 py-1 rounded-md text-[10px] font-semibold tracking-wide transition-all ${
+            method === 'spearman'
+              ? 'bg-primary/20 text-primary shadow-sm'
+              : 'text-on-surface-variant hover:text-on-surface'
+          } ${!spearmanMatrix ? 'opacity-40 cursor-not-allowed' : ''}`}
+        >
+          Spearman
+        </button>
+      </div>
+
       {/* Matrix */}
       <div className="overflow-auto">
         {/* Header row */}
@@ -81,7 +108,7 @@ export default function CorrelationHeatmap({ matrix, columns, insights = [] }) {
               {rowCol.length > 9 ? rowCol.slice(0, 8) + '…' : rowCol}
             </span>
             {cols.map((colCol) => {
-              const v = matrix[rowCol]?.[colCol];
+              const v = activeMatrix[rowCol]?.[colCol];
               const { bg, text } = corrColor(v);
               const isHovered = hover?.row === rowCol && hover?.col === colCol;
               const isSelf = rowCol === colCol;
@@ -133,9 +160,12 @@ export default function CorrelationHeatmap({ matrix, columns, insights = [] }) {
             {hover.row} × {hover.col}
           </p>
           <p className="text-on-surface-variant mt-0.5">
-            r = {Number(hover.v).toFixed(4)} · {getStrength(hover.v)}{' '}
+            {method === 'spearman' ? 'ρ' : 'r'} = {Number(hover.v).toFixed(4)} · {getStrength(hover.v)}{' '}
             {hover.v > 0 ? 'positive' : hover.v < 0 ? 'negative' : ''}
           </p>
+          {method === 'spearman' && (
+            <p className="text-on-surface-variant/60 mt-0.5 text-[9px]">Spearman rank correlation (monotonic)</p>
+          )}
         </div>
       )}
 

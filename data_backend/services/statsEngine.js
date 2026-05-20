@@ -21,10 +21,62 @@ function quantile(arr, q) {
   return s[lo] + (pos - lo) * (s[hi] - s[lo]);
 }
 
-function stdDev(arr) {
+function sampleVariance(arr) {
   if (arr.length < 2) return 0;
   const m = mean(arr);
-  return Math.sqrt(arr.reduce((s, v) => s + (v - m) ** 2, 0) / arr.length);
+  return arr.reduce((s, v) => s + (v - m) ** 2, 0) / (arr.length - 1);
+}
+
+function stdDev(arr) {
+  return Math.sqrt(sampleVariance(arr));
+}
+
+/**
+ * Fisher's g1 skewness (unbiased estimator).
+ * g1 = [n / ((n-1)(n-2))] * Σ((xi - x̄) / s)³
+ */
+function fisherSkewness(arr) {
+  const n = arr.length;
+  if (n < 3) return 0;
+  const m = mean(arr);
+  const s = stdDev(arr);
+  if (s === 0) return 0;
+  const sum3 = arr.reduce((sum, x) => sum + ((x - m) / s) ** 3, 0);
+  return (n / ((n - 1) * (n - 2))) * sum3;
+}
+
+/**
+ * Excess kurtosis (Fisher's definition, normal = 0).
+ * Uses the bias-corrected formula.
+ */
+function excessKurtosis(arr) {
+  const n = arr.length;
+  if (n < 4) return 0;
+  const m = mean(arr);
+  const s = stdDev(arr);
+  if (s === 0) return 0;
+  const sum4 = arr.reduce((sum, x) => sum + ((x - m) / s) ** 4, 0);
+  const raw = (n * (n + 1)) / ((n - 1) * (n - 2) * (n - 3)) * sum4;
+  const correction = (3 * (n - 1) ** 2) / ((n - 2) * (n - 3));
+  return raw - correction;
+}
+
+/**
+ * Rank an array (average ranks for ties).
+ */
+function rankArray(arr) {
+  const indexed = arr.map((v, i) => ({ v, i }));
+  indexed.sort((a, b) => a.v - b.v);
+  const ranks = new Array(arr.length);
+  let i = 0;
+  while (i < indexed.length) {
+    let j = i;
+    while (j < indexed.length && indexed[j].v === indexed[i].v) j++;
+    const avgRank = (i + j + 1) / 2; // 1-based average rank
+    for (let k = i; k < j; k++) ranks[indexed[k].i] = avgRank;
+    i = j;
+  }
+  return ranks;
 }
 
 function numericVals(rows, col) {
@@ -107,6 +159,7 @@ function computeNumericStats(rows, headers, columnTypes) {
     const vals = numericVals(rows, col);
     if (vals.length < 2) continue;
 
+    const n = vals.length;
     const m = mean(vals);
     const med = median(vals);
     const sd = stdDev(vals);
@@ -115,7 +168,10 @@ function computeNumericStats(rows, headers, columnTypes) {
     const q1 = quantile(vals, 0.25);
     const q3 = quantile(vals, 0.75);
     const iqr = q3 - q1;
-    const skewness = sd > 0 ? round((3 * (m - med)) / sd, 4) : 0;
+    const skewness = fisherSkewness(vals);
+    const kurtosis = excessKurtosis(vals);
+    const coefficientOfVariation = m !== 0 ? sd / Math.abs(m) : 0;
+    const standardError = sd / Math.sqrt(n);
 
     const lowerFence = q1 - 1.5 * iqr;
     const upperFence = q3 + 1.5 * iqr;
@@ -126,8 +182,11 @@ function computeNumericStats(rows, headers, columnTypes) {
       mean: round(m), median: round(med), min: round(mn), max: round(mx),
       stdDev: round(sd), variance: round(sd * sd),
       range: round(mx - mn), q1: round(q1), q3: round(q3), iqr: round(iqr),
-      skewness, sum: round(vals.reduce((a, b) => a + b, 0)),
-      nonNullCount: vals.length, nullCount: rows.length - vals.length,
+      skewness: round(skewness), kurtosis: round(kurtosis),
+      coefficientOfVariation: round(coefficientOfVariation),
+      standardError: round(standardError),
+      sum: round(vals.reduce((a, b) => a + b, 0)),
+      nonNullCount: n, nullCount: rows.length - n,
       zscoreOutlierCount: zscoreOutliers.length,
       iqrOutlierCount: iqrOutliers.length,
       iqrLowerFence: round(lowerFence), iqrUpperFence: round(upperFence),
@@ -165,16 +224,39 @@ function computeCategoricalStats(rows, headers, columnTypes) {
 
 // ─── Correlation Matrix ───────────────────────────────────────────────────────
 
+/**
+ * Compute Pearson correlation between two arrays.
+ */
+function pearsonCorrelation(arrA, arrB) {
+  const n = arrA.length;
+  const mA = mean(arrA), mB = mean(arrB);
+  const num = arrA.reduce((s, v, i) => s + (v - mA) * (arrB[i] - mB), 0);
+  const dA = Math.sqrt(arrA.reduce((s, v) => s + (v - mA) ** 2, 0));
+  const dB = Math.sqrt(arrB.reduce((s, v) => s + (v - mB) ** 2, 0));
+  return dA && dB ? num / (dA * dB) : null;
+}
+
+/**
+ * Compute Spearman rank correlation between two arrays.
+ */
+function spearmanCorrelation(arrA, arrB) {
+  const ranksA = rankArray(arrA);
+  const ranksB = rankArray(arrB);
+  return pearsonCorrelation(ranksA, ranksB);
+}
+
 function computeCorrelationMatrix(rows, numCols) {
-  if (numCols.length < 2) return { matrix: {}, pairs: [] };
+  if (numCols.length < 2) return { matrix: {}, spearmanMatrix: {}, pairs: [] };
 
   const matrix = {};
+  const spearmanMatrix = {};
   const pairs = [];
 
   for (const a of numCols) {
     matrix[a] = {};
+    spearmanMatrix[a] = {};
     for (const b of numCols) {
-      if (a === b) { matrix[a][b] = 1; continue; }
+      if (a === b) { matrix[a][b] = 1; spearmanMatrix[a][b] = 1; continue; }
       const pairsA = [], pairsB = [];
       rows.forEach(r => {
         const va = r[a], vb = r[b];
@@ -183,22 +265,21 @@ function computeCorrelationMatrix(rows, numCols) {
           pairsB.push(Number(vb));
         }
       });
-      if (pairsA.length < 5) { matrix[a][b] = null; continue; }
-      const mA = mean(pairsA), mB = mean(pairsB);
-      const num = pairsA.reduce((s, v, i) => s + (v - mA) * (pairsB[i] - mB), 0);
-      const dA = Math.sqrt(pairsA.reduce((s, v) => s + (v - mA) ** 2, 0));
-      const dB = Math.sqrt(pairsB.reduce((s, v) => s + (v - mB) ** 2, 0));
-      const r = dA && dB ? round(num / (dA * dB)) : null;
+      if (pairsA.length < 5) { matrix[a][b] = null; spearmanMatrix[a][b] = null; continue; }
+
+      const r = round(pearsonCorrelation(pairsA, pairsB));
+      const rho = round(spearmanCorrelation(pairsA, pairsB));
       matrix[a][b] = r;
+      spearmanMatrix[a][b] = rho;
 
       if (r !== null && a < b) {
-        pairs.push({ colA: a, colB: b, r, absR: Math.abs(r) });
+        pairs.push({ colA: a, colB: b, r, spearman: rho, absR: Math.abs(r), absSpearman: Math.abs(rho) });
       }
     }
   }
 
   pairs.sort((a, b) => b.absR - a.absR);
-  return { matrix, pairs };
+  return { matrix, spearmanMatrix, pairs };
 }
 
 // ─── Quality Score ────────────────────────────────────────────────────────────
@@ -249,7 +330,7 @@ export function computeAllStats(headers, rows) {
   const columnBasics = computeColumnBasics(headers, rows, columnTypes);
   const { numericStats, numericColumns } = computeNumericStats(rows, headers, columnTypes);
   const { categoricalStats, categoricalColumns } = computeCategoricalStats(rows, headers, columnTypes);
-  const { matrix: correlationMatrix, pairs: correlationPairs } = computeCorrelationMatrix(rows, numericColumns);
+  const { matrix: correlationMatrix, spearmanMatrix, pairs: correlationPairs } = computeCorrelationMatrix(rows, numericColumns);
   const { qualityScore, qualityFlags, totalNulls, nullPct, dupeCount } = computeQualityScore(rows, headers, columnTypes, columnBasics);
 
   return {
@@ -262,6 +343,7 @@ export function computeAllStats(headers, rows) {
     categoricalStats,
     categoricalColumns,
     correlationMatrix,
+    spearmanMatrix,
     correlationPairs,
     qualityScore,
     qualityFlags,

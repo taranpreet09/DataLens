@@ -252,16 +252,23 @@ export function kMeansAnalysis(headers, rows, options = {}) {
   const allLabels = new Array(rows.length).fill(-1);
   validIndices.forEach((origIdx, i) => { allLabels[origIdx] = result.labels[i]; });
 
+  // Compute Silhouette Score
+  const silhouette = computeSilhouetteScore(scaled, result.labels, selectedK);
+
   // Compute cluster stats in original scale
   const clusterStats = {};
   for (let c = 0; c < selectedK; c++) {
     const clusterPoints = data.filter((_, i) => result.labels[i] === c);
+    const clusterSilhouettes = silhouette.perPoint
+      .map((s, i) => result.labels[i] === c ? s : null)
+      .filter(s => s !== null);
     clusterStats[c] = {
       size: clusterPoints.length,
       centroid: numCols.reduce((obj, col, j) => {
         obj[col] = round(mean(clusterPoints.map(p => p[j])));
         return obj;
       }, {}),
+      avgSilhouette: round(mean(clusterSilhouettes)),
     };
   }
 
@@ -275,7 +282,95 @@ export function kMeansAnalysis(headers, rows, options = {}) {
     columnsUsed: numCols,
     validRows: data.length,
     elbow: elbowResult,
+    silhouetteScore: silhouette.overall,
+    daviesBouldinIndex: computeDaviesBouldin(scaled, result.labels, result.centroids, selectedK),
   };
+}
+
+/**
+ * Compute Silhouette Score for a clustering result.
+ * Measures how similar each point is to its own cluster vs nearest other cluster.
+ * Range: -1 (bad) to +1 (good).
+ */
+function computeSilhouetteScore(data, labels, k) {
+  const n = data.length;
+  if (k < 2 || n < k) return { overall: 0, perPoint: new Array(n).fill(0) };
+
+  const perPoint = new Array(n).fill(0);
+
+  for (let i = 0; i < n; i++) {
+    const myCluster = labels[i];
+
+    // Compute average distance to own cluster (a(i))
+    let aSum = 0, aCount = 0;
+    for (let j = 0; j < n; j++) {
+      if (j === i || labels[j] !== myCluster) continue;
+      aSum += euclideanDistance(data[i], data[j]);
+      aCount++;
+    }
+    const a = aCount > 0 ? aSum / aCount : 0;
+
+    // Compute minimum average distance to any other cluster (b(i))
+    let b = Infinity;
+    for (let c = 0; c < k; c++) {
+      if (c === myCluster) continue;
+      let bSum = 0, bCount = 0;
+      for (let j = 0; j < n; j++) {
+        if (labels[j] !== c) continue;
+        bSum += euclideanDistance(data[i], data[j]);
+        bCount++;
+      }
+      if (bCount > 0) {
+        const avgDist = bSum / bCount;
+        if (avgDist < b) b = avgDist;
+      }
+    }
+
+    if (b === Infinity) b = 0;
+    const maxAB = Math.max(a, b);
+    perPoint[i] = maxAB > 0 ? (b - a) / maxAB : 0;
+  }
+
+  const overall = round(mean(perPoint));
+  return { overall, perPoint };
+}
+
+/**
+ * Compute Davies-Bouldin Index. Lower is better.
+ * Measures average similarity between each cluster and its most similar cluster.
+ */
+function computeDaviesBouldin(data, labels, centroids, k) {
+  if (k < 2) return 0;
+
+  // Compute scatter (avg distance to centroid) for each cluster
+  const scatter = new Array(k).fill(0);
+  const counts = new Array(k).fill(0);
+
+  for (let i = 0; i < data.length; i++) {
+    const c = labels[i];
+    scatter[c] += euclideanDistance(data[i], centroids[c]);
+    counts[c]++;
+  }
+  for (let c = 0; c < k; c++) {
+    scatter[c] = counts[c] > 0 ? scatter[c] / counts[c] : 0;
+  }
+
+  // For each cluster, find the max (scatter_i + scatter_j) / dist(centroid_i, centroid_j)
+  let dbSum = 0;
+  for (let i = 0; i < k; i++) {
+    let maxRatio = 0;
+    for (let j = 0; j < k; j++) {
+      if (i === j) continue;
+      const dist = euclideanDistance(centroids[i], centroids[j]);
+      if (dist > 0) {
+        const ratio = (scatter[i] + scatter[j]) / dist;
+        if (ratio > maxRatio) maxRatio = ratio;
+      }
+    }
+    dbSum += maxRatio;
+  }
+
+  return round(dbSum / k);
 }
 
 
@@ -322,7 +417,7 @@ function gaussianElimination(A, b) {
  * Simple linear regression: y = a + bx
  * @param {number[]} x
  * @param {number[]} y
- * @returns {{ slope, intercept, rSquared, rmse, residuals, predictions }}
+ * @returns {{ slope, intercept, rSquared, adjustedRSquared, fStatistic, fPValue, rmse, residuals, predictions, coefficientPValues }}
  */
 export function linearRegression(x, y) {
   if (x.length !== y.length || x.length < 2) {
@@ -349,21 +444,59 @@ export function linearRegression(x, y) {
   const predictions = x.map(xi => intercept + slope * xi);
   const residuals = y.map((yi, i) => yi - predictions[i]);
 
-  // R² and RMSE
+  // R² and Adjusted R²
   const ssRes = residuals.reduce((s, r) => s + r * r, 0);
   const rSquared = ssYY > 0 ? 1 - ssRes / ssYY : 0;
+  const adjustedRSquared = n > 2 ? 1 - ((1 - rSquared) * (n - 1)) / (n - 2) : rSquared;
   const rmse = Math.sqrt(ssRes / n);
+
+  // F-statistic for overall significance
+  const ssReg = ssYY - ssRes;
+  const dfReg = 1;
+  const dfRes = n - 2;
+  const msReg = ssReg / dfReg;
+  const msRes = dfRes > 0 ? ssRes / dfRes : 0;
+  const fStatistic = msRes > 0 ? msReg / msRes : 0;
+
+  // Standard errors for coefficients
+  const slopeStdErr = msRes > 0 ? Math.sqrt(msRes / ssXX) : 0;
+  const interceptStdErr = msRes > 0 ? Math.sqrt(msRes * (1 / n + mx * mx / ssXX)) : 0;
+
+  // t-statistics for coefficients
+  const slopeT = slopeStdErr > 0 ? slope / slopeStdErr : 0;
+  const interceptT = interceptStdErr > 0 ? intercept / interceptStdErr : 0;
 
   return {
     slope: round(slope),
     intercept: round(intercept),
     rSquared: round(rSquared),
+    adjustedRSquared: round(adjustedRSquared),
+    fStatistic: round(fStatistic),
     rmse: round(rmse),
     residuals: residuals.map(r => round(r)),
     predictions: predictions.map(p => round(p)),
     equation: `y = ${round(slope)}x + ${round(intercept)}`,
     n,
+    coefficients: {
+      slope: { value: round(slope), stdError: round(slopeStdErr), tStat: round(slopeT) },
+      intercept: { value: round(intercept), stdError: round(interceptStdErr), tStat: round(interceptT) },
+    },
+    durbinWatson: round(computeDurbinWatson(residuals)),
   };
+}
+
+/**
+ * Durbin-Watson statistic for autocorrelation in residuals.
+ * Values near 2 = no autocorrelation, <1 = positive, >3 = negative.
+ */
+function computeDurbinWatson(residuals) {
+  if (residuals.length < 2) return 2;
+  let sumDiffSq = 0, sumSq = 0;
+  for (let i = 1; i < residuals.length; i++) {
+    sumDiffSq += (residuals[i] - residuals[i - 1]) ** 2;
+  }
+  sumSq = residuals.reduce((s, r) => s + r * r, 0);
+  return sumSq > 0 ? sumDiffSq / sumSq : 2;
 }
 
 /**
@@ -371,7 +504,7 @@ export function linearRegression(x, y) {
  * Uses normal equations: (X'X)^-1 * X'y
  * @param {number[][]} X - Matrix of features (each row is a sample)
  * @param {number[]} y - Target values
- * @returns {{ coefficients, intercept, rSquared, rmse, residuals, predictions }}
+ * @returns {{ coefficients, intercept, rSquared, adjustedRSquared, fStatistic, rmse, residuals, predictions, vif }}
  */
 export function multipleLinearRegression(X, y) {
   const n = X.length;
@@ -412,17 +545,46 @@ export function multipleLinearRegression(X, y) {
   const my = mean(y);
   const ssTot = y.reduce((s, yi) => s + (yi - my) ** 2, 0);
   const rSquared = ssTot > 0 ? 1 - ssRes / ssTot : 0;
+  const adjustedRSquared = n > p + 1 ? 1 - ((1 - rSquared) * (n - 1)) / (n - p - 1) : rSquared;
   const rmse = Math.sqrt(ssRes / n);
+
+  // F-statistic for overall model significance
+  const ssReg = ssTot - ssRes;
+  const dfReg = p;
+  const dfRes = n - p - 1;
+  const msReg = dfReg > 0 ? ssReg / dfReg : 0;
+  const msRes = dfRes > 0 ? ssRes / dfRes : 0;
+  const fStatistic = msRes > 0 ? msReg / msRes : 0;
+
+  // Variance Inflation Factor (VIF) for each predictor
+  const vif = [];
+  for (let j = 0; j < p; j++) {
+    // Regress feature j against all other features
+    const xj = X.map(row => row[j]);
+    const otherFeatures = X.map(row => row.filter((_, idx) => idx !== j));
+    if (otherFeatures[0].length === 0) { vif.push(1); continue; }
+    try {
+      const subResult = multipleLinearRegression(otherFeatures, xj);
+      const rj2 = subResult.rSquared;
+      vif.push(round(rj2 < 1 ? 1 / (1 - rj2) : Infinity));
+    } catch {
+      vif.push(1);
+    }
+  }
 
   return {
     coefficients: coefficients.map(c => round(c)),
     intercept: round(intercept),
     rSquared: round(rSquared),
+    adjustedRSquared: round(adjustedRSquared),
+    fStatistic: round(fStatistic),
     rmse: round(rmse),
     residuals: residuals.map(r => round(r)),
     predictions: predictions.map(p => round(p)),
     n,
     features: p,
+    vif,
+    durbinWatson: round(computeDurbinWatson(residuals)),
   };
 }
 
@@ -1055,10 +1217,10 @@ export function holtWinters(series, options = {}) {
  * Full Holt-Winters analysis on dataset.
  * @param {string[]} headers
  * @param {Array} rows
- * @param {object} options - { valueColumn, dateColumn, seasonLength, forecastPeriods, multiplicative }
+ * @param {object} options - { valueColumn, dateColumn, seasonLength, forecastPeriods, multiplicative, optimize }
  */
 export function holtWintersAnalysis(headers, rows, options = {}) {
-  const { valueColumn, dateColumn, seasonLength = 12, forecastPeriods = 12, multiplicative = true } = options;
+  const { valueColumn, dateColumn, seasonLength = 12, forecastPeriods = 12, multiplicative = true, optimize = true } = options;
 
   if (!valueColumn) throw new Error('valueColumn is required');
 
@@ -1079,12 +1241,87 @@ export function holtWintersAnalysis(headers, rows, options = {}) {
     throw new Error(`Need at least ${seasonLength * 2} values, got ${series.length}`);
   }
 
+  // Optimize parameters if requested
+  let bestParams = { alpha: 0.3, beta: 0.1, gamma: 0.3 };
+  if (optimize && series.length >= seasonLength * 3) {
+    bestParams = optimizeHoltWintersParams(series, seasonLength, multiplicative);
+  }
+
+  const result = holtWinters(series, {
+    seasonLength,
+    forecastPeriods,
+    multiplicative,
+    alpha: bestParams.alpha,
+    beta: bestParams.beta,
+    gamma: bestParams.gamma,
+  });
+
   return {
-    ...holtWinters(series, { seasonLength, forecastPeriods, multiplicative }),
+    ...result,
     valueColumn,
     dateColumn,
     seriesLength: series.length,
+    optimized: optimize,
   };
+}
+
+/**
+ * Optimize Holt-Winters parameters (alpha, beta, gamma) by grid search.
+ * Minimizes MSE on the training data.
+ */
+function optimizeHoltWintersParams(series, seasonLength, multiplicative) {
+  let bestMse = Infinity;
+  let bestParams = { alpha: 0.3, beta: 0.1, gamma: 0.3 };
+
+  // Coarse grid search
+  const steps = [0.1, 0.2, 0.3, 0.5, 0.7, 0.9];
+  const betaSteps = [0.01, 0.05, 0.1, 0.2, 0.3, 0.5];
+
+  for (const alpha of steps) {
+    for (const beta of betaSteps) {
+      for (const gamma of steps) {
+        try {
+          const result = holtWinters(series, { seasonLength, alpha, beta, gamma, forecastPeriods: 0, multiplicative });
+          const mse = result.residuals.reduce((s, r) => s + r * r, 0) / result.residuals.length;
+          if (mse < bestMse) {
+            bestMse = mse;
+            bestParams = { alpha, beta, gamma };
+          }
+        } catch {
+          // Skip invalid parameter combinations
+        }
+      }
+    }
+  }
+
+  // Fine-tune around best coarse parameters (±0.05 in steps of 0.02)
+  const fine = (center) => {
+    const vals = [];
+    for (let d = -0.05; d <= 0.05; d += 0.02) {
+      const v = center + d;
+      if (v > 0.01 && v < 0.99) vals.push(round(v, 2));
+    }
+    return vals;
+  };
+
+  for (const alpha of fine(bestParams.alpha)) {
+    for (const beta of fine(bestParams.beta)) {
+      for (const gamma of fine(bestParams.gamma)) {
+        try {
+          const result = holtWinters(series, { seasonLength, alpha, beta, gamma, forecastPeriods: 0, multiplicative });
+          const mse = result.residuals.reduce((s, r) => s + r * r, 0) / result.residuals.length;
+          if (mse < bestMse) {
+            bestMse = mse;
+            bestParams = { alpha: round(alpha, 2), beta: round(beta, 2), gamma: round(gamma, 2) };
+          }
+        } catch {
+          // Skip
+        }
+      }
+    }
+  }
+
+  return bestParams;
 }
 
 
@@ -1154,9 +1391,20 @@ export function fftSpectrum(signal) {
   const real = new Array(paddedLength).fill(0);
   const imag = new Array(paddedLength).fill(0);
 
-  // Remove mean (detrend)
-  const m = mean(signal);
-  for (let i = 0; i < n; i++) real[i] = signal[i] - m;
+  // Linear detrend (remove both mean AND linear trend to avoid false low-freq spikes)
+  const xMean = (n - 1) / 2;
+  const yMean = mean(signal);
+  let ssXY = 0, ssXX = 0;
+  for (let i = 0; i < n; i++) {
+    ssXY += (i - xMean) * (signal[i] - yMean);
+    ssXX += (i - xMean) ** 2;
+  }
+  const trendSlope = ssXX > 0 ? ssXY / ssXX : 0;
+  const trendIntercept = yMean - trendSlope * xMean;
+
+  for (let i = 0; i < n; i++) {
+    real[i] = signal[i] - (trendSlope * i + trendIntercept);
+  }
 
   // Apply Hanning window
   for (let i = 0; i < n; i++) {

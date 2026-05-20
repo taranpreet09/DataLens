@@ -197,6 +197,7 @@ export default function Reports() {
             <h3 className="text-xl font-bold font-headline mb-4">Correlation Matrix</h3>
             <CorrelationHeatmap
               matrix={stats.correlationMatrix}
+              spearmanMatrix={stats.spearmanMatrix}
               columns={numCols}
               insights={stats.correlationInsights}
             />
@@ -218,7 +219,7 @@ export default function Reports() {
                 <table className="w-full text-left border-collapse text-sm">
                   <thead className="bg-surface-container-high/50">
                     <tr>
-                      {['Column', 'Sum', 'Mean', 'Median', 'Min', 'Max', 'σ', 'Var', 'IQR', 'Skew', 'CV%', 'Outliers (Z)', 'Outliers (IQR)'].map(h => (
+                      {['Column', 'Sum', 'Mean', 'Median', 'Min', 'Max', 'σ', 'Var', 'IQR', 'Skew', 'Kurt.', 'CV%', 'Outliers (Z)', 'Outliers (IQR)'].map(h => (
                         <th key={h} className="px-5 py-4 text-[10px] uppercase tracking-widest font-bold text-on-surface-variant whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -241,7 +242,10 @@ export default function Reports() {
                           <td className="px-5 py-4 font-mono">
                             <span className={Math.abs(s.skewness ?? 0) > 0.5 ? 'text-amber-400 font-bold' : ''}>{s.skewness ?? '—'}</span>
                           </td>
-                          <td className="px-5 py-4 font-mono">{s.cv ?? '—'}</td>
+                          <td className="px-5 py-4 font-mono">
+                            <span className={Math.abs(s.kurtosis ?? 0) > 2 ? 'text-amber-400 font-bold' : ''}>{s.kurtosis ?? '—'}</span>
+                          </td>
+                          <td className="px-5 py-4 font-mono">{s.coefficientOfVariation != null ? (s.coefficientOfVariation * 100).toFixed(1) : (s.cv ?? '—')}</td>
                           <td className="px-5 py-4 font-mono">
                             <span className={s.zscoreOutlierCount > 0 ? 'text-error font-bold' : 'text-secondary'}>{s.zscoreOutlierCount}</span>
                           </td>

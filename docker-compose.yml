@@ -59,14 +59,10 @@ services:
       - CORS_ORIGIN=http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://frontend:4173
       - STORAGE_PATH=/app/storage
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
-      # Intelligence Layer (Phase 5)
+      # Intelligence Layer
       - INTELLIGENCE_LAYER_ENABLED=${INTELLIGENCE_LAYER_ENABLED:-true}
-      - AWS_REGION=${AWS_REGION:-us-east-1}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
-      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-anthropic.claude-sonnet-4-20250514-v1:0}
-      - BEDROCK_TOKEN_BUDGET=${BEDROCK_TOKEN_BUDGET:-12000}
-      - BEDROCK_TIMEOUT_MS=${BEDROCK_TIMEOUT_MS:-60000}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL_ID=${GEMINI_MODEL_ID:-gemini-2.5-flash}
     depends_on:
       mongo:
         condition: service_healthy

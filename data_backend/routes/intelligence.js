@@ -16,9 +16,9 @@ const router = Router();
 // ─── Error code → HTTP status map ────────────────────────────────────────────
 
 const CODE_TO_STATUS = {
-  BEDROCK_NOT_CONFIGURED: 503,
-  BEDROCK_TIMEOUT: 504,
-  BEDROCK_ERROR: 502,
+  LLM_NOT_CONFIGURED: 503,
+  LLM_TIMEOUT: 504,
+  LLM_ERROR: 502,
   TOKEN_BUDGET_EXCEEDED: 413,
   PAYLOAD_TOO_LARGE: 413,
   LLM_RATE_LIMITED: 429,
@@ -113,13 +113,13 @@ router.use((req, res, next) => {
 router.get('/health', wrap(async (req, res) => {
   const cfg = intelligenceConfig();
 
-  let bedrockStatus = 'disabled';
+  let llmStatus = 'disabled';
   let pythonStatus = 'error';
   let model = cfg.modelId;
 
   if (cfg.enabled) {
-    if (!cfg.credentialsResolved && !process.env.GEMINI_API_KEY) {
-      bedrockStatus = 'error';
+    if (!process.env.GEMINI_API_KEY) {
+      llmStatus = 'error';
     } else {
       try {
         const { invokeModel } = await import('../services/geminiClient.js');
@@ -129,9 +129,9 @@ router.get('/health', wrap(async (req, res) => {
           datasetId: null,
           userId: null,
         });
-        bedrockStatus = 'ok';
+        llmStatus = 'ok';
       } catch {
-        bedrockStatus = 'error';
+        llmStatus = 'error';
       }
     }
 
@@ -144,7 +144,7 @@ router.get('/health', wrap(async (req, res) => {
     }
   }
 
-  res.json({ bedrock: bedrockStatus, python: pythonStatus, model });
+  res.json({ llm: llmStatus, python: pythonStatus, model });
 }));
 
 // ─── Auth middleware applied to all remaining routes ─────────────────────────

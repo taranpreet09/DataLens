@@ -147,6 +147,7 @@ export default function SharedReport() {
             <h2 className="text-xl font-bold font-headline mb-4">Correlation Matrix</h2>
             <CorrelationHeatmap
               matrix={stats.correlationMatrix}
+              spearmanMatrix={stats.spearmanMatrix}
               columns={numCols}
               insights={stats.correlationInsights}
             />

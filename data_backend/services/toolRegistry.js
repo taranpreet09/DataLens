@@ -28,6 +28,8 @@ import {
   chiSquareTest,
   normalityTest,
   confidenceInterval,
+  mannWhitneyU,
+  pairedTTest,
 } from './statisticalTests.js';
 import { stratifiedSample } from './fileParser.js';
 
@@ -309,6 +311,54 @@ const TOOL_SCHEMAS = {
       const rows = await getDatasetRows(dataset);
       const values = getNumericValues(rows, params.column);
       return confidenceInterval(values, params.level ?? 0.95);
+    },
+  },
+
+  mann_whitney: {
+    schema: z.object({
+      column: ColumnRef,
+      groupColumn: ColumnRef,
+    }),
+    description: 'Perform a Mann-Whitney U test (non-parametric alternative to the t-test). Use when normality assumption is violated. Tests if two groups have different distributions.',
+    requiredColumns(params) {
+      return [params.column, params.groupColumn];
+    },
+    async invoke(dataset, userId, params) {
+      const rows = await getDatasetRows(dataset);
+      const groupMap = {};
+      for (const row of rows) {
+        const groupKey = String(row[params.groupColumn]);
+        const val = Number(row[params.column]);
+        if (!isNaN(val)) {
+          if (!groupMap[groupKey]) groupMap[groupKey] = [];
+          groupMap[groupKey].push(val);
+        }
+      }
+      const groups = Object.values(groupMap);
+      if (groups.length < 2) return null;
+      return mannWhitneyU(groups[0], groups[1]);
+    },
+  },
+
+  paired_t_test: {
+    schema: z.object({
+      column1: ColumnRef,
+      column2: ColumnRef,
+    }),
+    description: 'Perform a paired t-test to compare two related measurements (before/after, pre/post). Tests if the mean difference between paired observations is significantly different from zero.',
+    requiredColumns(params) {
+      return [params.column1, params.column2];
+    },
+    async invoke(dataset, userId, params) {
+      const rows = await getDatasetRows(dataset);
+      const before = [], after = [];
+      for (const row of rows) {
+        const v1 = Number(row[params.column1]);
+        const v2 = Number(row[params.column2]);
+        if (!isNaN(v1) && !isNaN(v2)) { before.push(v1); after.push(v2); }
+      }
+      if (before.length < 2) return null;
+      return pairedTTest(before, after);
     },
   },
 };

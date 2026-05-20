@@ -284,9 +284,28 @@ function KMeansResults({ results }) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <MetricCard label="K" value={results.k} />
         <MetricCard label="WCSS" value={results.wcss?.toLocaleString()} />
-        <MetricCard label="Iterations" value={results.iterations} />
+        <MetricCard label="Silhouette" value={results.silhouetteScore?.toFixed(3)} />
         <MetricCard label="Valid Rows" value={results.validRows?.toLocaleString()} />
       </div>
+
+      {/* Quality Indicators */}
+      {results.silhouetteScore != null && (
+        <div className={`px-3 py-2 rounded-lg text-xs font-medium ${
+          results.silhouetteScore > 0.5 ? 'bg-emerald-500/15 text-emerald-300' :
+          results.silhouetteScore > 0.25 ? 'bg-amber-500/15 text-amber-300' :
+          'bg-red-500/15 text-red-300'
+        }`}>
+          {results.silhouetteScore > 0.5
+            ? `Strong clustering structure (silhouette = ${results.silhouetteScore.toFixed(3)})`
+            : results.silhouetteScore > 0.25
+            ? `Moderate clustering structure (silhouette = ${results.silhouetteScore.toFixed(3)})`
+            : `Weak clustering — consider fewer clusters or different columns (silhouette = ${results.silhouetteScore.toFixed(3)})`
+          }
+          {results.daviesBouldinIndex != null && (
+            <span className="ml-2 opacity-70">· DB Index: {results.daviesBouldinIndex.toFixed(3)}</span>
+          )}
+        </div>
+      )}
 
       {/* Interactive Cluster Scatter Plot (#35) */}
       {scatterData.length > 0 && (
@@ -303,11 +322,11 @@ function KMeansResults({ results }) {
 
       {results.clusterStats && (
         <div>
-          <h4 className="text-sm font-medium text-gray-300 mb-2">Cluster Sizes</h4>
+          <h4 className="text-sm font-medium text-gray-300 mb-2">Cluster Details</h4>
           <div className="flex gap-2 flex-wrap">
             {Object.entries(results.clusterStats).map(([id, stat]) => (
               <span key={id} className="px-2 py-1 bg-violet-500/20 text-violet-300 rounded text-xs">
-                Cluster {id}: {stat.size} points
+                Cluster {id}: {stat.size} pts{stat.avgSilhouette != null ? ` (s=${stat.avgSilhouette.toFixed(2)})` : ''}
               </span>
             ))}
           </div>
@@ -342,10 +361,61 @@ function RegressionResults({ results }) {
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <MetricCard label="R²" value={results.rSquared} />
+        <MetricCard label="Adj. R²" value={results.adjustedRSquared} />
         <MetricCard label="RMSE" value={results.rmse} />
-        <MetricCard label="Type" value={results.type} />
         <MetricCard label="N" value={results.n} />
       </div>
+
+      {/* Model diagnostics */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+        {results.fStatistic != null && (
+          <div className="bg-black/20 rounded px-2.5 py-1.5">
+            <p className="text-[9px] text-gray-500 uppercase">F-Statistic</p>
+            <p className="text-xs text-white font-mono">{results.fStatistic}</p>
+          </div>
+        )}
+        {results.durbinWatson != null && (
+          <div className="bg-black/20 rounded px-2.5 py-1.5">
+            <p className="text-[9px] text-gray-500 uppercase">Durbin-Watson</p>
+            <p className="text-xs text-white font-mono">{results.durbinWatson}</p>
+            <p className="text-[9px] text-gray-600">
+              {results.durbinWatson > 1.5 && results.durbinWatson < 2.5 ? 'No autocorrelation' :
+               results.durbinWatson <= 1.5 ? 'Positive autocorrelation' : 'Negative autocorrelation'}
+            </p>
+          </div>
+        )}
+        {results.type && (
+          <div className="bg-black/20 rounded px-2.5 py-1.5">
+            <p className="text-[9px] text-gray-500 uppercase">Type</p>
+            <p className="text-xs text-white font-mono capitalize">{results.type}</p>
+          </div>
+        )}
+      </div>
+
+      {/* VIF for multiple regression */}
+      {results.vif && results.featureNames && (
+        <div>
+          <h4 className="text-sm font-medium text-gray-300 mb-2">Multicollinearity (VIF)</h4>
+          <div className="space-y-1">
+            {results.featureNames.map((name, i) => {
+              const vif = results.vif[i];
+              const isHigh = vif > 5;
+              return (
+                <div key={name} className="flex justify-between text-xs">
+                  <span className="text-gray-400">{name}</span>
+                  <span className={`font-mono ${isHigh ? 'text-amber-400' : 'text-white'}`}>
+                    {vif === Infinity ? '∞' : vif?.toFixed(2)}{isHigh ? ' ⚠️' : ''}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          {results.vif.some(v => v > 5) && (
+            <p className="text-[10px] text-amber-400/70 mt-1">⚠ VIF &gt; 5 suggests multicollinearity — consider removing correlated features.</p>
+          )}
+        </div>
+      )}
+
       {results.equation && (
         <div className="bg-black/30 rounded p-3">
           <p className="text-xs text-gray-400">Equation</p>

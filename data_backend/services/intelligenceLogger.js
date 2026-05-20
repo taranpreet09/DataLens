@@ -27,7 +27,7 @@ const REDACTED_PLACEHOLDER = '[redacted]';
  * `retryable` in the `extra` argument to `withCode`.
  */
 const RETRYABLE_CODES = new Set([
-  'BEDROCK_TIMEOUT',
+  'LLM_TIMEOUT',
   'INTENT_PARSE_ERROR',
   'INCOMPLETE_NARRATIVE',
   'LLM_RATE_LIMITED',

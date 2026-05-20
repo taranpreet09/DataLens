@@ -19,7 +19,7 @@ function stdDev(arr) { return Math.sqrt(variance(arr)); }
  *
  * @param {number[]} group1 - First sample
  * @param {number[]} group2 - Second sample
- * @returns {{ tStatistic, pValue, degreesOfFreedom, significant, meanDiff, confidenceInterval }}
+ * @returns {{ tStatistic, pValue, degreesOfFreedom, significant, meanDiff, confidenceInterval, cohensD, effectSizeLabel }}
  */
 export function tTest(group1, group2) {
   const n1 = group1.length, n2 = group2.length;
@@ -46,6 +46,12 @@ export function tTest(group1, group2) {
   const tCrit = jStat.studentt.inv(0.975, df);
   const marginOfError = tCrit * se;
 
+  // Cohen's d (pooled standard deviation)
+  const pooledStd = Math.sqrt(((n1 - 1) * v1 + (n2 - 1) * v2) / (n1 + n2 - 2));
+  const cohensD = pooledStd > 0 ? (m1 - m2) / pooledStd : 0;
+  const absd = Math.abs(cohensD);
+  const effectSizeLabel = absd >= 0.8 ? 'large' : absd >= 0.5 ? 'medium' : absd >= 0.2 ? 'small' : 'negligible';
+
   return {
     tStatistic: round(t),
     pValue: round(pValue, 6),
@@ -57,6 +63,8 @@ export function tTest(group1, group2) {
       upper: round(m1 - m2 + marginOfError),
       level: 0.95,
     },
+    cohensD: round(cohensD),
+    effectSizeLabel,
   };
 }
 
@@ -311,5 +319,147 @@ export function correlationSignificance(r, n) {
     pValue: round(pValue, 6),
     significant: pValue < 0.05,
     degreesOfFreedom: df,
+  };
+}
+
+// ─── Mann-Whitney U Test (Non-parametric) ─────────────────────────────────────
+
+/**
+ * Mann-Whitney U test — non-parametric alternative to the t-test.
+ * Tests whether the distributions of two groups differ.
+ * Use when normality assumption fails.
+ *
+ * @param {number[]} group1 - First sample
+ * @param {number[]} group2 - Second sample
+ * @returns {{ uStatistic, zScore, pValue, significant, effectSize, medianDiff }}
+ */
+export function mannWhitneyU(group1, group2) {
+  const n1 = group1.length, n2 = group2.length;
+  if (n1 < 3 || n2 < 3) return null;
+
+  // Combine and rank
+  const combined = [
+    ...group1.map(v => ({ v, group: 1 })),
+    ...group2.map(v => ({ v, group: 2 })),
+  ];
+  combined.sort((a, b) => a.v - b.v);
+
+  // Assign ranks (average for ties)
+  const N = combined.length;
+  const ranks = new Array(N);
+  let i = 0;
+  while (i < N) {
+    let j = i;
+    while (j < N && combined[j].v === combined[i].v) j++;
+    const avgRank = (i + j + 1) / 2; // 1-based
+    for (let k = i; k < j; k++) ranks[k] = avgRank;
+    i = j;
+  }
+
+  // Sum ranks for group 1
+  let R1 = 0;
+  for (let k = 0; k < N; k++) {
+    if (combined[k].group === 1) R1 += ranks[k];
+  }
+
+  // U statistics
+  const U1 = R1 - (n1 * (n1 + 1)) / 2;
+  const U2 = n1 * n2 - U1;
+  const U = Math.min(U1, U2);
+
+  // Normal approximation (for n > 20)
+  const muU = (n1 * n2) / 2;
+  const sigmaU = Math.sqrt((n1 * n2 * (n1 + n2 + 1)) / 12);
+
+  // Tie correction
+  const tieGroups = [];
+  i = 0;
+  while (i < N) {
+    let j = i;
+    while (j < N && combined[j].v === combined[i].v) j++;
+    if (j - i > 1) tieGroups.push(j - i);
+    i = j;
+  }
+  let tieCorrection = 0;
+  for (const t of tieGroups) tieCorrection += (t ** 3 - t);
+  const correctedSigma = Math.sqrt(
+    (n1 * n2 / 12) * ((n1 + n2 + 1) - tieCorrection / ((n1 + n2) * (n1 + n2 - 1)))
+  );
+  const sigma = correctedSigma > 0 ? correctedSigma : sigmaU;
+
+  const z = sigma > 0 ? (U1 - muU) / sigma : 0;
+  // Two-tailed p-value using normal approximation
+  const pValue = 2 * (1 - jStat.normal.cdf(Math.abs(z), 0, 1));
+
+  // Effect size: r = Z / sqrt(N)
+  const effectSize = Math.abs(z) / Math.sqrt(N);
+  const effectLabel = effectSize >= 0.5 ? 'large' : effectSize >= 0.3 ? 'medium' : effectSize >= 0.1 ? 'small' : 'negligible';
+
+  // Median of each group
+  const sorted1 = [...group1].sort((a, b) => a - b);
+  const sorted2 = [...group2].sort((a, b) => a - b);
+  const med1 = sorted1.length % 2 ? sorted1[Math.floor(sorted1.length / 2)] : (sorted1[sorted1.length / 2 - 1] + sorted1[sorted1.length / 2]) / 2;
+  const med2 = sorted2.length % 2 ? sorted2[Math.floor(sorted2.length / 2)] : (sorted2[sorted2.length / 2 - 1] + sorted2[sorted2.length / 2]) / 2;
+
+  return {
+    uStatistic: round(U),
+    zScore: round(z),
+    pValue: round(pValue, 6),
+    significant: pValue < 0.05,
+    effectSize: round(effectSize),
+    effectSizeLabel: effectLabel,
+    medianDiff: round(med1 - med2),
+    medians: { group1: round(med1), group2: round(med2) },
+  };
+}
+
+// ─── Paired T-Test ────────────────────────────────────────────────────────────
+
+/**
+ * Paired t-test for before/after measurements.
+ * Tests whether the mean difference between paired observations is zero.
+ *
+ * @param {number[]} before - First measurement set
+ * @param {number[]} after - Second measurement set (same subjects)
+ * @returns {{ tStatistic, pValue, degreesOfFreedom, significant, meanDiff, confidenceInterval, cohensD }}
+ */
+export function pairedTTest(before, after) {
+  if (before.length !== after.length || before.length < 2) return null;
+
+  const n = before.length;
+  const diffs = before.map((b, i) => b - after[i]);
+
+  const dMean = mean(diffs);
+  const dStd = stdDev(diffs);
+  const se = dStd / Math.sqrt(n);
+
+  if (se === 0) return null;
+
+  const t = dMean / se;
+  const df = n - 1;
+  const pValue = 2 * (1 - jStat.studentt.cdf(Math.abs(t), df));
+
+  const tCrit = jStat.studentt.inv(0.975, df);
+  const marginOfError = tCrit * se;
+
+  // Cohen's d for paired samples
+  const cohensD = dStd > 0 ? dMean / dStd : 0;
+  const absd = Math.abs(cohensD);
+  const effectSizeLabel = absd >= 0.8 ? 'large' : absd >= 0.5 ? 'medium' : absd >= 0.2 ? 'small' : 'negligible';
+
+  return {
+    tStatistic: round(t),
+    pValue: round(pValue, 6),
+    degreesOfFreedom: df,
+    significant: pValue < 0.05,
+    meanDiff: round(dMean),
+    confidenceInterval: {
+      lower: round(dMean - marginOfError),
+      upper: round(dMean + marginOfError),
+      level: 0.95,
+    },
+    cohensD: round(cohensD),
+    effectSizeLabel,
+    n,
   };
 }

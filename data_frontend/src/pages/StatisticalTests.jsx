@@ -159,10 +159,12 @@ export default function StatisticalTests() {
               { label: `Mean (${groupNames[0]})`, value: groups[groupNames[0]]?.mean?.toFixed(2) },
               { label: `Mean (${groupNames[1]})`, value: groups[groupNames[1]]?.mean?.toFixed(2) },
               { label: 'Mean Difference', value: r.meanDiff?.toFixed(4) },
+              { label: "Cohen's d", value: r.cohensD?.toFixed(4) },
+              { label: 'Effect Size', value: r.effectSizeLabel },
               { label: '95% CI', value: `[${r.confidenceInterval?.lower?.toFixed(2)}, ${r.confidenceInterval?.upper?.toFixed(2)}]` },
             ],
             interpretation: r.significant
-              ? `There is a statistically significant difference in ${col1} between ${groupNames[0]} and ${groupNames[1]} (p = ${r.pValue?.toFixed(4)}).`
+              ? `There is a statistically significant difference in ${col1} between ${groupNames[0]} and ${groupNames[1]} (p = ${r.pValue?.toFixed(4)}, d = ${r.cohensD?.toFixed(3)} — ${r.effectSizeLabel} effect).`
               : `No significant difference in ${col1} between ${groupNames[0]} and ${groupNames[1]} (p = ${r.pValue?.toFixed(4)}).`,
           };
           break;
@@ -248,6 +250,59 @@ export default function StatisticalTests() {
           break;
         }
 
+        case 'mann-whitney': {
+          if (!col1 || !groupCol) throw new Error('Select a numeric column and a group column');
+          response = await analysisApi.mannWhitney(datasetId, {
+            numericColumn: col1,
+            groupColumn: groupCol,
+            group1Value: group1 || undefined,
+            group2Value: group2 || undefined,
+          });
+          const r = response.result;
+          formatted = {
+            title: `Mann-Whitney U — ${col1} by ${groupCol}`,
+            summary: true,
+            significant: r.significant,
+            metrics: [
+              { label: 'U Statistic', value: r.uStatistic?.toFixed(2) },
+              { label: 'Z Score', value: r.zScore?.toFixed(4) },
+              { label: 'P-Value', value: r.pValue < 0.001 ? '< 0.001' : r.pValue?.toFixed(4) },
+              { label: 'Effect Size (r)', value: r.effectSize?.toFixed(4) },
+              { label: 'Effect', value: r.effectSizeLabel },
+              { label: 'Median Diff', value: r.medianDiff?.toFixed(4) },
+            ],
+            interpretation: r.significant
+              ? `The distributions differ significantly (U = ${r.uStatistic?.toFixed(1)}, p = ${r.pValue?.toFixed(4)}). Effect size: ${r.effectSizeLabel} (r = ${r.effectSize?.toFixed(3)}).`
+              : `No significant difference between distributions (U = ${r.uStatistic?.toFixed(1)}, p = ${r.pValue?.toFixed(4)}).`,
+          };
+          break;
+        }
+
+        case 'paired-ttest': {
+          if (!col1 || !col2) throw new Error('Select two numeric columns (before/after)');
+          response = await analysisApi.pairedTTest(datasetId, { column1: col1, column2: col2 });
+          const r = response.result;
+          formatted = {
+            title: `Paired T-Test — ${col1} vs ${col2}`,
+            summary: true,
+            significant: r.significant,
+            metrics: [
+              { label: 'T-Statistic', value: r.tStatistic?.toFixed(4) },
+              { label: 'P-Value', value: r.pValue < 0.001 ? '< 0.001' : r.pValue?.toFixed(4) },
+              { label: 'Degrees of Freedom', value: r.degreesOfFreedom },
+              { label: 'Mean Difference', value: r.meanDiff?.toFixed(4) },
+              { label: "Cohen's d", value: r.cohensD?.toFixed(4) },
+              { label: 'Effect Size', value: r.effectSizeLabel },
+              { label: '95% CI', value: `[${r.confidenceInterval?.lower?.toFixed(3)}, ${r.confidenceInterval?.upper?.toFixed(3)}]` },
+              { label: 'Pairs', value: r.n },
+            ],
+            interpretation: r.significant
+              ? `The paired measurements differ significantly (t = ${r.tStatistic?.toFixed(3)}, p = ${r.pValue?.toFixed(4)}). Mean difference: ${r.meanDiff?.toFixed(3)}. Effect: ${r.effectSizeLabel} (d = ${r.cohensD?.toFixed(3)}).`
+              : `No significant difference between paired measurements (t = ${r.tStatistic?.toFixed(3)}, p = ${r.pValue?.toFixed(4)}).`,
+          };
+          break;
+        }
+
         default:
           throw new Error('Unknown test type');
       }
@@ -313,8 +368,14 @@ export default function StatisticalTests() {
 
             {/* Column selectors based on test type */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {(testType === 'normality' || testType === 'ttest' || testType === 'anova') && (
+              {(testType === 'normality' || testType === 'ttest' || testType === 'anova' || testType === 'mann-whitney') && (
                 <ColumnSelect label="Numeric Column" value={col1} onChange={setCol1} columns={columns} filterType="numeric" />
+              )}
+              {testType === 'paired-ttest' && (
+                <>
+                  <ColumnSelect label="Column 1 (Before)" value={col1} onChange={setCol1} columns={columns} filterType="numeric" />
+                  <ColumnSelect label="Column 2 (After)" value={col2} onChange={setCol2} columns={columns} filterType="numeric" />
+                </>
               )}
               {testType === 'chi-square' && (
                 <>
@@ -328,7 +389,7 @@ export default function StatisticalTests() {
                   <ColumnSelect label="Column 2 (Numeric)" value={col2} onChange={setCol2} columns={columns} filterType="numeric" />
                 </>
               )}
-              {(testType === 'ttest' || testType === 'anova') && (
+              {(testType === 'ttest' || testType === 'anova' || testType === 'mann-whitney') && (
                 <ColumnSelect label="Group Column (Categorical)" value={groupCol} onChange={setGroupCol} columns={columns} filterType="categorical" />
               )}
               {testType === 'ttest' && groupCol && groupValues.length > 0 && (
@@ -386,6 +447,8 @@ export default function StatisticalTests() {
 const TEST_TYPES = [
   { id: 'normality', label: 'Normality', icon: 'equalizer' },
   { id: 'ttest', label: 'T-Test', icon: 'compare_arrows' },
+  { id: 'paired-ttest', label: 'Paired T-Test', icon: 'sync_alt' },
+  { id: 'mann-whitney', label: 'Mann-Whitney', icon: 'swap_vert' },
   { id: 'anova', label: 'ANOVA', icon: 'stacked_bar_chart' },
   { id: 'chi-square', label: 'Chi-Square', icon: 'grid_on' },
   { id: 'correlation', label: 'Correlation', icon: 'hub' },
@@ -397,6 +460,6 @@ function getTestIcon(type) {
 }
 
 function getTestColor(type) {
-  const colors = { normality: 'text-primary', ttest: 'text-secondary', anova: 'text-tertiary', 'chi-square': 'text-amber-400', correlation: 'text-primary', confidence: 'text-secondary' };
+  const colors = { normality: 'text-primary', ttest: 'text-secondary', 'paired-ttest': 'text-secondary', 'mann-whitney': 'text-amber-400', anova: 'text-tertiary', 'chi-square': 'text-amber-400', correlation: 'text-primary', confidence: 'text-secondary' };
   return colors[type] || 'text-primary';
 }

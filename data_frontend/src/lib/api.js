@@ -48,6 +48,8 @@ export const analysisApi = {
   chiSquare: (datasetId, body) => request(`/api/analysis/${datasetId}/test/chi-square`, { method: 'POST', body }),
   normality: (datasetId, body) => request(`/api/analysis/${datasetId}/test/normality`, { method: 'POST', body }),
   correlation: (datasetId, body) => request(`/api/analysis/${datasetId}/test/correlation`, { method: 'POST', body }),
+  mannWhitney: (datasetId, body) => request(`/api/analysis/${datasetId}/test/mann-whitney`, { method: 'POST', body }),
+  pairedTTest: (datasetId, body) => request(`/api/analysis/${datasetId}/test/paired-ttest`, { method: 'POST', body }),
   confidenceIntervals: (datasetId, level = 0.95) => request(`/api/analysis/${datasetId}/confidence-intervals`, { method: 'POST', body: { level } }),
 
   // Data Quality
