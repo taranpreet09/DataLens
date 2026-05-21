@@ -88,6 +88,10 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
+    if (user.authProvider === 'google') {
+      return res.status(400).json({ message: 'This account was registered using Google. Please log in with Google.' });
+    }
+
     // Compare password
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {

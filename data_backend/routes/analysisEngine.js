@@ -169,8 +169,8 @@ router.post('/:id/anomaly-detection', async (req, res) => {
     // Don't send all scores for large datasets
     const scoreSummary = {
       mean: round(mean(result.scores.filter(s => s > 0))),
-      max: round(Math.max(...result.scores)),
-      min: round(Math.min(...result.scores.filter(s => s > 0))),
+      max: round(result.scores.reduce((a, b) => Math.max(a, b), -Infinity)),
+      min: round(result.scores.filter(s => s > 0).reduce((a, b) => Math.min(a, b), Infinity)),
     };
 
     res.json({
