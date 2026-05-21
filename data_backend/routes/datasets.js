@@ -9,7 +9,7 @@ import authMiddleware from '../middleware/auth.js';
 import { UPLOADS_DIR, PARSED_DIR } from '../config/storage.js';
 import { addProcessingJob } from '../services/jobQueue.js';
 import { readRowsPage, deleteParsedFile } from '../services/fileParser.js';
-import { cacheGet, cacheSet, cacheDel } from '../config/redis.js';
+import { cacheGet, cacheSet, cacheDel, cacheDelPattern } from '../config/redis.js';
 
 const router = Router();
 
@@ -302,7 +302,7 @@ router.post('/:id/reprocess', async (req, res) => {
     });
 
     // Invalidate list cache
-    await cacheDel(`datasets:${req.userId}:*`);
+    await cacheDelPattern(`datasets:${req.userId}:*`);
 
     res.json({ message: 'Stats recomputed successfully.', stats });
   } catch (err) {
@@ -341,7 +341,7 @@ router.delete('/:id', async (req, res) => {
     }
 
     // Invalidate cache
-    await cacheDel(`datasets:${req.userId}:*`);
+    await cacheDelPattern(`datasets:${req.userId}:*`);
 
     await dataset.deleteOne();
     res.json({ message: 'Deleted.' });

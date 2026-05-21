@@ -127,10 +127,10 @@ export function narrativeMessages(context, sections, tone) {
 |-------|----------|--------|----------------|
 Include: missing data, low cardinality, format issues, identifier problems
 
-## Distributions
+## Trends
 For top 3-4 variables:
 **Variable Name** (mean: X, range: Y-Z)
-- **Observation:** distribution shape and characteristics
+- **Observation:** distribution shape, time trends, and characteristics
 - **Why it matters:** business context
 - **Suggested action:** what to do with this information
 
@@ -156,9 +156,6 @@ For each:
 **Long-term (3-12 months):**
 - strategic changes
 
-## Next Steps
-Numbered roadmap: Data Cleaning → Feature Engineering → Hypothesis Testing → Modeling
-
 ═══ WRITING RULES ═══
 - NO paragraphs longer than 2 lines
 - Bullets and tables ONLY
@@ -169,10 +166,16 @@ Numbered roadmap: Data Cleaning → Feature Engineering → Hypothesis Testing �
 Respond with ONLY a JSON object:
 {
   "sections": {
-    "<section_name>": "<markdown text>"
+    "overview": "<markdown text>",
+    "insights": "<markdown text>",
+    "quality": "<markdown text>",
+    "trends": "<markdown text>",
+    "correlations": "<markdown text>",
+    "outliers": "<markdown text>",
+    "recommendations": "<markdown text>"
   }
 }
-No code fences, no extra text.`;
+The section keys MUST exactly match the requested section names. No code fences, no extra text.`;
 
   const userContent = `Dataset context:\n${JSON.stringify(context, null, 2)}\n\nWrite sections: ${sections.join(', ')}`;
 

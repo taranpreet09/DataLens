@@ -1,4 +1,4 @@
-// ─── Obsidian Analytics Eval 1 — Stats Engine ────────────────────────────────────────────
+﻿// ─── Data Lens Eval 1 — Stats Engine ────────────────────────────────────────────
 // Pure computation module. Zero React dependencies. Zero side effects.
 // Exports a single function: computeAllStats(headers, rows) => DatasetStats
 
@@ -40,6 +40,10 @@ function numericVals(rows, col) {
 
 function detectColumnTypes(headers, rows) {
   const types = {};
+  // Excel date heuristic: serial numbers in 1900-01-01 (1) to 2099-12-31 (~73050) range.
+  const looksLikeExcelSerial = (n) => Number.isFinite(n) && n >= 1 && n <= 73050 && n === Math.round(n * 1e6) / 1e6;
+  const NAME_HINTS_DATE = /^(date|day|month|year|timestamp|time|datetime|created|updated|dt|on)$|_(date|day|time|timestamp|dt)$|(date|timestamp|datetime)_/i;
+
   for (const h of headers) {
     const allVals = rows.map(r => r[h]);
     const nonNull = allVals.filter(v => v !== null && v !== '');
@@ -48,15 +52,40 @@ function detectColumnTypes(headers, rows) {
     const nums = nonNull.filter(v => typeof v === 'number' || (!isNaN(Number(v)) && String(v).trim() !== ''));
     const numRatio = nums.length / nonNull.length;
 
-    // Date check
+    // Date check — accepts:
+    //   • ISO/parseable strings (2024-01-15, 2024-01-15T10:30:00, Jan 15 2024)
+    //   • Excel serial numbers when column name suggests a date
+    // Plus: at least one parsed date must land in a plausible year window
+    // (1900-2100), which rejects numeric codes that happen to parse via
+    // new Date('01') etc.
+    const nameHintsDate = NAME_HINTS_DATE.test(h);
+    let hasReasonableYear = false;
     const dateCount = nonNull.filter(v => {
-      if (typeof v === 'number') return false;
-      const d = new Date(v);
-      return !isNaN(d.getTime()) && isNaN(Number(v));
+      let d = null;
+      if (typeof v === 'number') {
+        // Numeric value: treat as date only if column name hints AND value looks like a serial
+        if (!nameHintsDate || !looksLikeExcelSerial(v)) return false;
+        d = new Date(Math.round((v - 25569) * 86400 * 1000));
+      } else {
+        const s = String(v).trim();
+        if (s === '') return false;
+        // Reject plain integer-like strings unless name hints + Excel serial
+        if (!isNaN(Number(s)) && /^-?\d+(\.\d+)?$/.test(s)) {
+          if (!nameHintsDate || !looksLikeExcelSerial(Number(s))) return false;
+          d = new Date(Math.round((Number(s) - 25569) * 86400 * 1000));
+        } else {
+          d = new Date(s);
+        }
+      }
+      if (!d || isNaN(d.getTime())) return false;
+      const y = d.getFullYear();
+      if (y >= 1900 && y <= 2100) hasReasonableYear = true;
+      return true;
     }).length;
     const dateRatio = dateCount / nonNull.length;
 
-    if (dateRatio > 0.7) { types[h] = 'date'; continue; }
+    // Date wins when ratio > 0.7 AND at least one parsed date has a plausible year.
+    if (dateRatio > 0.7 && hasReasonableYear) { types[h] = 'date'; continue; }
 
     if (numRatio > 0.7) {
       // Check if ID column: high uniqueness + likely identifiers
@@ -135,8 +164,11 @@ function computeNumericStats(rows, headers, columnTypes) {
     const iqr = q3 - q1;
 
     const n = vals.length;
-    const sum3 = vals.reduce((acc, x) => ((x - m) / sd) ** 3 + acc, 0);
-    const skewness = n >= 3 ? (n / ((n - 1) * (n - 2))) * sum3 : 0;
+    const sum3 = sd > 0 ? vals.reduce((acc, x) => ((x - m) / sd) ** 3 + acc, 0) : 0;
+    // Skewness: undefined for n < 3 or zero std-dev (no spread → no shape).
+    const skewness = (n >= 3 && sd > 0)
+      ? round((n / ((n - 1) * (n - 2))) * sum3, 4)
+      : null;
 
     // Z-score outliers: |value - mean| / stdDev > 3
     const zscoreOutliers = sd > 0 ? vals.filter(x => Math.abs(x - m) / sd > 3) : [];
@@ -149,10 +181,10 @@ function computeNumericStats(rows, headers, columnTypes) {
     // Coefficient of variation
     const cv = m !== 0 ? round(Math.abs(sd / m) * 100, 2) : null;
 
-    // Excess kurtosis (Fisher's definition, normal = 0)
-    let kurtosis = 0;
-    if (vals.length >= 4 && sd > 0) {
-      const n = vals.length;
+    // Excess kurtosis (Fisher's definition, normal = 0).
+    // Undefined for n < 4 or zero std-dev.
+    let kurtosis = null;
+    if (n >= 4 && sd > 0) {
       const sum4 = vals.reduce((sum, x) => sum + ((x - m) / sd) ** 4, 0);
       const raw = (n * (n + 1)) / ((n - 1) * (n - 2) * (n - 3)) * sum4;
       const correction = (3 * (n - 1) ** 2) / ((n - 2) * (n - 3));
@@ -331,7 +363,7 @@ function getCorrelationStrength(r) {
 }
 
 function computeCorrelationMatrix(rows, numCols) {
-  if (numCols.length < 2) return { matrix: {}, insights: [] };
+  if (numCols.length < 2) return { matrix: {}, insights: [], pairs: [] };
 
   const maxRows = 5000;
   let sampledRows = rows;
@@ -374,14 +406,31 @@ function computeCorrelationMatrix(rows, numCols) {
     }
   }
 
-  // Step 7: Auto-generated correlation insights
   pairs.sort((a, b) => b.absR - a.absR);
-  const insights = [];
+  const insights = buildCorrelationInsights(pairs);
 
-  // Top 3 strongest
+  return { matrix, insights, pairs };
+}
+
+/**
+ * Build human-readable correlation insights from a list of pairs.
+ * Exposed separately so we can rebuild insights when reusing a backend matrix.
+ */
+function buildCorrelationInsights(rawPairs) {
+  if (!Array.isArray(rawPairs) || rawPairs.length === 0) return [];
+  // Ensure each pair has the bits we need (strength + absR).
+  const pairs = rawPairs
+    .filter(p => p && typeof p.r === 'number')
+    .map(p => ({
+      ...p,
+      absR: p.absR ?? Math.abs(p.r),
+      strength: p.strength ?? getCorrelationStrength(p.r),
+    }))
+    .sort((a, b) => b.absR - a.absR);
+
+  const insights = [];
   const top3 = pairs.slice(0, 3);
   for (const p of top3) {
-    const dir = p.r > 0 ? 'higher' : 'lower';
     const assoc = p.r > 0 ? 'tend to increase together' : 'tend to move in opposite directions';
     insights.push({
       type: p.r > 0 ? 'positive' : 'negative',
@@ -389,8 +438,6 @@ function computeCorrelationMatrix(rows, numCols) {
       r: p.r,
     });
   }
-
-  // Most surprising negative
   const negatives = pairs.filter(p => p.r < -0.2).sort((a, b) => a.r - b.r);
   if (negatives.length > 0 && !top3.includes(negatives[0])) {
     const p = negatives[0];
@@ -400,8 +447,7 @@ function computeCorrelationMatrix(rows, numCols) {
       r: p.r,
     });
   }
-
-  return { matrix, insights, pairs };
+  return insights;
 }
 
 // ─── Step 8: Category Aggregations ─────────────────────────────────────────────
@@ -494,12 +540,15 @@ function computeHistograms(rows, numCols, numericStats) {
 
     const maxCount = Math.max(...bins.map(b => b.count));
     const modeBucketIdx = bins.findIndex(b => b.count === maxCount);
-    const skew = numericStats[col]?.skewness ?? 0;
+    const skew = numericStats[col]?.skewness;
+    const skewKnown = skew != null && Number.isFinite(skew);
 
     buckets[col] = {
       bins: bins.map(({ range, count }, i) => ({ range, count, isMode: i === modeBucketIdx })),
-      skewDirection: Math.abs(skew) > 0.5 ? (skew > 0 ? 'right-skewed' : 'left-skewed') : 'symmetric',
-      skewValue: skew,
+      skewDirection: !skewKnown
+        ? 'unknown'
+        : (Math.abs(skew) > 0.5 ? (skew > 0 ? 'right-skewed' : 'left-skewed') : 'symmetric'),
+      skewValue: skewKnown ? skew : null,
     };
   }
   return buckets;
@@ -643,18 +692,20 @@ function computeAnomalies(rows, headers, columnTypes, numericStats, categoricalC
       anomalies.suspiciousPatterns.push({ column: col, type: 'suspicious_rounding', description: `>80% of ${col} values are round numbers` });
     }
 
-    // Monotonic check
-    let increasing = true, decreasing = true;
-    for (let i = 1; i < vals.length; i++) {
-      if (vals[i] < vals[i - 1]) increasing = false;
-      if (vals[i] > vals[i - 1]) decreasing = false;
-    }
-    if ((increasing || decreasing) && vals.length > 5) {
-      anomalies.suspiciousPatterns.push({
-        column: col,
-        type: 'monotonic',
-        description: `${col} is ${increasing ? 'monotonically increasing' : 'monotonically decreasing'}`,
-      });
+    // Monotonic check — skip ID columns (they're supposed to be sorted)
+    if (columnTypes[col] !== 'id') {
+      let increasing = true, decreasing = true;
+      for (let i = 1; i < vals.length; i++) {
+        if (vals[i] < vals[i - 1]) increasing = false;
+        if (vals[i] > vals[i - 1]) decreasing = false;
+      }
+      if ((increasing || decreasing) && vals.length > 5) {
+        anomalies.suspiciousPatterns.push({
+          column: col,
+          type: 'monotonic',
+          description: `${col} is ${increasing ? 'monotonically increasing' : 'monotonically decreasing'}`,
+        });
+      }
     }
 
     // Z-score vs IQR comparison
@@ -756,7 +807,7 @@ function computeQualityFlags(rows, headers, columnTypes, numericStats, columnBas
     const numericCount = vals.filter(v => typeof v === 'number' || (!isNaN(Number(v)) && String(v).trim() !== '')).length;
     const stringCount = vals.length - numericCount;
     const ratio = vals.length > 0 ? Math.min(numericCount, stringCount) / vals.length : 0;
-    if (ratio > 0.05) mixedTypeCols.push(h);
+    if (ratio > 0.15) mixedTypeCols.push(h);
   }
 
   const totalCells = rows.length * headers.length;
@@ -798,9 +849,11 @@ function computeQualityFlags(rows, headers, columnTypes, numericStats, columnBas
   });
 
   // Date gaps
+  const dateGapCols = [];
   Object.entries(dateStatsMap).forEach(([col, ds]) => {
     if (ds.hasGapAnomaly) {
       flags.push({ type: 'Date gaps detected', detail: `${col}: largest gap ${ds.largestGapDays} days (median ${ds.medianGapDays})`, severity: 'warning', column: col });
+      dateGapCols.push(col);
     }
   });
 
@@ -837,6 +890,7 @@ function computeQualityFlags(rows, headers, columnTypes, numericStats, columnBas
     mixedTypeColumns: mixedTypeCols,
     highNullColumns: highNullCols,
     allNullColumns: allNullCols,
+    dateGapColumns: dateGapCols,
   };
 }
 
@@ -960,71 +1014,140 @@ function generateInsights(ds, stats) {
 
 // ─── Step 14: Data Quality Score ───────────────────────────────────────────────
 
-const DIRTY_NUMERIC_STRINGS = /[$€£¥₹]/;
-const NULL_STRINGS_SCORE = new Set([
-  'n/a', 'na', 'N/A', 'NA', 'null', 'NULL', 'none', 'None', 'NONE',
-  '-', '--', 'missing', 'MISSING', 'undefined', '#N/A', '#NA', 'NaN', 'nan',
-]);
-
-function computeQualityScore(qualityFlags, rowCount, colCount, rows, headers, columnTypes) {
-  if (!rowCount || !colCount) return 100;
+/**
+ * Computes a transparent, explainable quality score from cumulative penalties.
+ *
+ * Inputs:
+ *   qualityFlags      — output of computeQualityFlags (totalNullCount, duplicateRowCount, mixedTypeColumns, …)
+ *   rowCount, colCount
+ *   numericStats      — output of computeNumericStats (used for outlier penalty)
+ *   anomalies         — output of computeAnomalies (constant/near-constant/monotonic/benford/etc.)
+ *
+ * Returns:
+ *   { qualityScore, scoreFlags, scoreBreakdown }
+ *     scoreBreakdown lists the points subtracted by each penalty bucket
+ *     scoreFlags is a small array of soft hints (e.g. 'limited_data')
+ */
+function computeQualityScore(qualityFlags, rowCount, colCount, numericStats, anomalies) {
+  if (!rowCount || !colCount) {
+    return { qualityScore: 0, scoreFlags: ['empty_dataset'], scoreBreakdown: {} };
+  }
 
   const totalCells = rowCount * colCount;
+  const flags = [];
+  const breakdown = {};
 
-  // Dimension 1: Completeness (0-1) — proportion of non-null cells
-  const nullRatio = totalCells > 0 ? qualityFlags.totalNullCount / totalCells : 0;
-  const completeness = 1 - nullRatio;
+  // ── Nulls: nullPct (0..100) → min(40, nullPct * 1.2) ────────────────────────
+  const totalNulls = qualityFlags.totalNullCount ?? 0;
+  const nullPct = totalCells > 0 ? (totalNulls / totalCells) * 100 : 0;
+  const nullPenalty = Math.min(40, nullPct * 1.2);
+  breakdown.nulls = round(nullPenalty, 2);
 
-  // Dimension 2: Uniqueness (0-1) — proportion of non-duplicate rows
-  const dupeRatio = rowCount > 0 ? qualityFlags.duplicateRowCount / rowCount : 0;
-  const uniqueness = 1 - dupeRatio;
+  // ── Duplicates: dupePct → min(25, dupePct * 1.5) ────────────────────────────
+  const dupeCount = qualityFlags.duplicateRowCount ?? 0;
+  const dupePct = rowCount > 0 ? (dupeCount / rowCount) * 100 : 0;
+  const dupePenalty = Math.min(25, dupePct * 1.5);
+  breakdown.duplicates = round(dupePenalty, 2);
 
-  // Dimension 3: Consistency (0-1) — proportion of columns without mixed types
-  const mixedTypeCount = qualityFlags.mixedTypeColumns.length;
-  const consistency = colCount > 0 ? 1 - (mixedTypeCount / colCount) : 1;
+  // ── Mixed types: ratio = mixedCols / colCount → min(15, ratio * 60) ─────────
+  const mixedCount = (qualityFlags.mixedTypeColumns || []).length;
+  const mixedRatio = colCount > 0 ? mixedCount / colCount : 0;
+  const mixedPenalty = Math.min(15, mixedRatio * 60);
+  breakdown.mixedTypes = round(mixedPenalty, 2);
 
-  // Dimension 4: Validity (0-1) — proportion of cells free of dirty strings
-  let dirtyStringCount = 0;
-  if (rows && headers && columnTypes) {
-    const sampleSize = Math.min(rows.length, 2000);
-    const step = Math.max(1, Math.floor(rows.length / sampleSize));
-    let sampledCells = 0;
-    for (let ri = 0; ri < rows.length && sampledCells < sampleSize * colCount; ri += step) {
-      const row = rows[ri];
-      for (const h of headers) {
-        const val = row[h];
-        if (val === null || val === undefined || typeof val === 'number') { sampledCells++; continue; }
-        const s = String(val).trim();
-        const sl = s.toLowerCase();
-        if (NULL_STRINGS_SCORE.has(sl)) dirtyStringCount++;
-        else if (DIRTY_NUMERIC_STRINGS.test(s) && /\d/.test(s)) dirtyStringCount++;
-        else if (s !== '' && columnTypes[h] === 'numeric' && isNaN(Number(s))) dirtyStringCount++;
-        sampledCells++;
+  // ── High-null columns (>20% null, not 100%): 3 each, cap 12 ─────────────────
+  const highNullCount = (qualityFlags.highNullColumns || []).length;
+  const highNullPenalty = Math.min(12, highNullCount * 3);
+  breakdown.highNullCols = round(highNullPenalty, 2);
+
+  // ── All-null columns: 8 each, cap 16 ────────────────────────────────────────
+  const allNullCount = (qualityFlags.allNullColumns || []).length;
+  const allNullPenalty = Math.min(16, allNullCount * 8);
+  breakdown.allNullCols = round(allNullPenalty, 2);
+
+  // ── Constant columns: 4 each, cap 12 ────────────────────────────────────────
+  const constCount = (anomalies?.constantColumns || []).length;
+  const constPenalty = Math.min(12, constCount * 4);
+  breakdown.constantCols = round(constPenalty, 2);
+
+  // ── Near-constant columns (>95% top value): 2 each, cap 8 ───────────────────
+  const nearConstCount = (anomalies?.nearConstantColumns || []).length;
+  const nearConstPenalty = Math.min(8, nearConstCount * 2);
+  breakdown.nearConstantCols = round(nearConstPenalty, 2);
+
+  // ── Monotonic columns (sorted, not ID): 2 each, cap 6 ───────────────────────
+  const monotonicCount = (anomalies?.suspiciousPatterns || [])
+    .filter(p => p.type === 'monotonic').length;
+  const monotonicPenalty = Math.min(6, monotonicCount * 2);
+  breakdown.monotonicCols = round(monotonicPenalty, 2);
+
+  // ── Fuzzy duplicate categories: 3 per group, cap 12 ─────────────────────────
+  const fuzzyCount = (anomalies?.fuzzyDuplicates || []).length;
+  const fuzzyPenalty = Math.min(12, fuzzyCount * 3);
+  breakdown.fuzzyDuplicates = round(fuzzyPenalty, 2);
+
+  // ── Benford anomalies: 4 each, cap 12 ───────────────────────────────────────
+  const benfordCount = (anomalies?.benfordAnomalies || []).length;
+  const benfordPenalty = Math.min(12, benfordCount * 4);
+  breakdown.benfordAnomalies = round(benfordPenalty, 2);
+
+  // ── Suspicious rounding: 2 each, cap 6 ──────────────────────────────────────
+  const roundingCount = (anomalies?.suspiciousPatterns || [])
+    .filter(p => p.type === 'suspicious_rounding').length;
+  const roundingPenalty = Math.min(6, roundingCount * 2);
+  breakdown.suspiciousRounding = round(roundingPenalty, 2);
+
+  // ── Date gap anomalies: 3 each, cap 9 ───────────────────────────────────────
+  const dateGapCount = (qualityFlags.dateGapColumns || []).length;
+  const dateGapPenalty = Math.min(9, dateGapCount * 3);
+  breakdown.dateGapAnomalies = round(dateGapPenalty, 2);
+
+  // ── Outlier-heavy cols (z-score outliers > 5% of values): 2 each, cap 8 ─────
+  let outlierHeavy = 0;
+  if (numericStats) {
+    for (const col of Object.keys(numericStats)) {
+      const s = numericStats[col];
+      if (!s || !s.nonNullCount) continue;
+      if (s.zscoreOutlierCount > 0 && (s.zscoreOutlierCount / s.nonNullCount) > 0.05) {
+        outlierHeavy++;
       }
     }
-    const sampledTotal = sampledCells || 1;
-    dirtyStringCount = (dirtyStringCount / sampledTotal) * totalCells;
   }
-  const dirtyRatio = totalCells > 0 ? dirtyStringCount / totalCells : 0;
-  const validity = 1 - Math.min(dirtyRatio, 1);
+  const outlierPenalty = Math.min(8, outlierHeavy * 2);
+  breakdown.outlierHeavyCols = round(outlierPenalty, 2);
 
-  // Geometric mean of all four dimensions, scaled to 0-100
-  // Geometric mean naturally penalizes any single bad dimension without
-  // allowing one good dimension to mask problems in another.
-  const geoMean = Math.pow(
-    Math.max(completeness, 0.001) *
-    Math.max(uniqueness, 0.001) *
-    Math.max(consistency, 0.001) *
-    Math.max(validity, 0.001),
-    0.25
+  // ── Aggregate (cumulative penalty, capped at 100) ───────────────────────────
+  const totalPenalty = Math.min(100,
+    nullPenalty + dupePenalty + mixedPenalty +
+    highNullPenalty + allNullPenalty +
+    constPenalty + nearConstPenalty + monotonicPenalty +
+    fuzzyPenalty + benfordPenalty + roundingPenalty +
+    dateGapPenalty + outlierPenalty
   );
+  let score = 100 - totalPenalty;
 
-  return Math.round(Math.max(0, Math.min(100, geoMean * 100)));
+  // ── Soft cap: small datasets cannot be confidently scored ───────────────────
+  if (rowCount < 50 || colCount < 2) {
+    if (score > 70) score = 70;
+    flags.push('limited_data');
+  }
+
+  score = Math.round(Math.max(0, Math.min(100, score)));
+  return { qualityScore: score, scoreFlags: flags, scoreBreakdown: breakdown };
 }
 
 // ─── Main Export ────────────────────────────────────────────────────────────────
 
-export function computeAllStats(headers, rows) {
+/**
+ * Compute the full stats bundle for a dataset.
+ *
+ * Optionally accepts `existingStats` (e.g. backend-provided stats from
+ * /api/datasets/:id). When that bundle already contains a correlationMatrix,
+ * we reuse it instead of recomputing locally — this keeps every page that
+ * displays a correlation in agreement with the backend's full-data result
+ * (the frontend samples 5,000 rows, the backend uses everything).
+ */
+export function computeAllStats(headers, rows, existingStats = null) {
   const rowCount = rows.length;
 
   // Step 1
@@ -1045,8 +1168,21 @@ export function computeAllStats(headers, rows) {
   // Step 5
   const { dateStats, dateColumns } = computeDateStats(rows, headers, columnTypes);
 
-  // Step 6 + 7: Correlation
-  const { matrix: correlationMatrix, insights: correlationInsights, pairs: correlationPairs } = computeCorrelationMatrix(rows, numericColumns);
+  // Step 6 + 7: Correlation — reuse from backend when available & complete.
+  let correlationMatrix, correlationInsights, correlationPairs;
+  const hasUsableExistingMatrix = existingStats
+    && existingStats.correlationMatrix
+    && typeof existingStats.correlationMatrix === 'object'
+    && Object.keys(existingStats.correlationMatrix).length >= 2;
+  if (hasUsableExistingMatrix) {
+    correlationMatrix = existingStats.correlationMatrix;
+    correlationPairs = existingStats.correlationPairs || [];
+    correlationInsights = existingStats.correlationInsights
+      || buildCorrelationInsights(correlationPairs);
+  } else {
+    ({ matrix: correlationMatrix, insights: correlationInsights, pairs: correlationPairs }
+      = computeCorrelationMatrix(rows, numericColumns));
+  }
 
   // Find primary numeric column
   const primaryCol = findPrimaryNumericCol(numericColumns, numericStats);
@@ -1066,8 +1202,9 @@ export function computeAllStats(headers, rows) {
   // Step 12: Quality flags
   const qualityFlags = computeQualityFlags(rows, headers, columnTypes, numericStats, columnBasics, anomalies, dateStats);
 
-  // Step 14: Quality score
-  const qualityScore = computeQualityScore(qualityFlags, rowCount, headers.length, rows, headers, columnTypes);
+  // Step 14: Quality score (transparent penalty model)
+  const { qualityScore, scoreFlags, scoreBreakdown } =
+    computeQualityScore(qualityFlags, rowCount, headers.length, numericStats, anomalies);
 
   // Build summarized stats object
   const statsObj = {
@@ -1093,6 +1230,8 @@ export function computeAllStats(headers, rows) {
     anomalies,
     qualityFlags,
     qualityScore,
+    scoreFlags,
+    scoreBreakdown,
   };
 
   // Step 13: Insights (needs the assembled stats object)

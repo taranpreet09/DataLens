@@ -180,9 +180,9 @@ router.post('/:id/export-excel', authMiddleware, async (req, res) => {
     if (dataset.stats?.correlationMatrix && dataset.stats.numericColumns?.length > 1) {
       const cols = dataset.stats.numericColumns;
       const corrHeaders = ['', ...cols];
-      const corrRows = cols.map((col, i) => [
-        col,
-        ...cols.map((_, j) => dataset.stats.correlationMatrix[i]?.[j] ?? ''),
+      const corrRows = cols.map((colA) => [
+        colA,
+        ...cols.map((colB) => dataset.stats.correlationMatrix[colA]?.[colB] ?? ''),
       ]);
       sheets.push({ name: 'Correlations', headers: corrHeaders, rows: corrRows });
     }

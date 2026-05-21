@@ -13,7 +13,7 @@ import IntelligenceErrorBanner from './IntelligenceErrorBanner';
 export default function NarrativePanel({ datasetId, initialNarrative }) {
   const [narrative, setNarrative] = useState(initialNarrative ?? null);
   const [tone, setTone] = useState(initialNarrative?.tone ?? 'executive');
-  const [loading, setLoading] = useState(!initialNarrative);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   // Determine if the error hides regenerate controls
@@ -21,12 +21,15 @@ export default function NarrativePanel({ datasetId, initialNarrative }) {
     error?.code === 'LLM_NOT_CONFIGURED' ||
     error?.code === 'INTELLIGENCE_DISABLED';
 
-  // Load on mount if no initial narrative was provided
+  // Sync the rendered narrative when the active dataset (and therefore its
+  // persisted narrative) changes. We do NOT auto-fetch when no narrative
+  // exists — generation must be triggered explicitly to avoid burning LLM
+  // quota on every page visit.
   useEffect(() => {
-    if (initialNarrative) return;
-    fetchNarrative(tone);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    setNarrative(initialNarrative ?? null);
+    setTone(initialNarrative?.tone ?? 'executive');
+    setError(null);
+  }, [datasetId, initialNarrative]);
 
   async function fetchNarrative(selectedTone) {
     setLoading(true);
@@ -102,8 +105,8 @@ export default function NarrativePanel({ datasetId, initialNarrative }) {
                 </>
               ) : (
                 <>
-                  <span className="material-symbols-outlined text-xs">refresh</span>
-                  Regenerate
+                  <span className="material-symbols-outlined text-xs">{narrative ? 'refresh' : 'auto_awesome'}</span>
+                  {narrative ? 'Regenerate' : 'Generate Narrative'}
                 </>
               )}
             </button>
@@ -124,6 +127,17 @@ export default function NarrativePanel({ datasetId, initialNarrative }) {
               style={{ width: `${w}%` }}
             />
           ))}
+        </div>
+      )}
+
+      {/* Empty state — narrative not yet generated */}
+      {!loading && !narrative && !error && (
+        <div className="flex flex-col items-center justify-center gap-3 py-8 text-center text-on-surface-variant">
+          <span className="material-symbols-outlined text-3xl opacity-40">auto_awesome</span>
+          <p className="text-sm max-w-md">
+            No AI narrative yet for this dataset. Click Generate Narrative above to write an
+            {tone === 'technical' ? ' in-depth technical' : ' executive'} summary from your stats.
+          </p>
         </div>
       )}
 

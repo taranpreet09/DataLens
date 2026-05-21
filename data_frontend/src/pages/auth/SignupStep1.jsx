@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useSignup } from '../../context/SignupContext';
 
@@ -46,7 +46,7 @@ export default function SignupStep1() {
               <input
                 className="w-full bg-surface-container-lowest border-outline-variant/30 border text-on-surface px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none placeholder:text-outline font-body text-sm"
                 id="email"
-                placeholder="you@obsidiananalytics.com"
+                placeholder="you@datalens.io"
                 type="email"
                 value={formData.email}
                 onChange={(e) => updateFields({ email: e.target.value })}
@@ -110,7 +110,7 @@ export default function SignupStep1() {
         {/* TOS Text */}
         <div className="mt-2 px-8 text-center">
           <p className="font-label text-[10px] leading-relaxed text-outline uppercase tracking-widest opacity-60">
-            By continuing, you agree to Obsidian Analytics' <br/>
+            By continuing, you agree to Data Lens' <br/>
             <a className="hover:text-on-surface transition-colors" href="#">Terms of Service</a> &amp; <a className="hover:text-on-surface transition-colors" href="#">Privacy Policy</a>
           </p>
         </div>

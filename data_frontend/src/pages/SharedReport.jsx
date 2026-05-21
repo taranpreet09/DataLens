@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { collaborationApi } from '../lib/api';
 import CorrelationHeatmap from '../components/charts/CorrelationHeatmap';
@@ -61,7 +61,7 @@ export default function SharedReport() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="material-symbols-outlined text-primary text-xl">analytics</span>
-            <span className="font-headline font-bold text-sm tracking-tight">Obsidian Analytics</span>
+            <span className="font-headline font-bold text-sm tracking-tight">Data Lens</span>
           </div>
           <span className="text-[10px] uppercase tracking-widest text-on-surface-variant bg-surface-container px-3 py-1 rounded-full border border-outline-variant/20">
             Shared Report
@@ -131,7 +131,7 @@ export default function SharedReport() {
                         <td className="px-4 py-3 font-mono">{s.min?.toLocaleString()}</td>
                         <td className="px-4 py-3 font-mono">{s.max?.toLocaleString()}</td>
                         <td className="px-4 py-3 font-mono">{s.stdDev?.toLocaleString()}</td>
-                        <td className="px-4 py-3 font-mono">{s.skewness}</td>
+                        <td className="px-4 py-3 font-mono">{s.skewness ?? '—'}</td>
                       </tr>
                     );
                   })}
@@ -194,7 +194,7 @@ export default function SharedReport() {
       <footer className="border-t border-outline-variant/5 py-6 mt-12">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 text-center">
           <p className="text-[10px] text-on-surface-variant uppercase tracking-widest">
-            Powered by Obsidian Analytics Engine
+            Powered by Data Lens Engine
           </p>
         </div>
       </footer>

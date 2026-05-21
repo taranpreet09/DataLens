@@ -6,9 +6,9 @@
 import { computeAllStats } from './statsEngine';
 
 self.onmessage = function (e) {
-  const { headers, rows } = e.data;
+  const { headers, rows, existingStats } = e.data;
   try {
-    const stats = computeAllStats(headers, rows);
+    const stats = computeAllStats(headers, rows, existingStats);
     self.postMessage({ success: true, stats });
   } catch (err) {
     self.postMessage({ success: false, error: err.message });

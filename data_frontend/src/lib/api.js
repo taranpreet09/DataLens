@@ -1,5 +1,5 @@
-/**
- * API client for the Obsidian Analytics backend.
+﻿/**
+ * API client for the Data Lens backend.
  * Handles auth headers, error parsing, and provides typed methods for each endpoint.
  */
 
@@ -61,7 +61,7 @@ export const analysisApi = {
 
   // Data Quality
   semanticTypes: (datasetId) => request(`/api/analysis/${datasetId}/quality/types`),
-  fuzzyDuplicates: (datasetId, threshold = 0.15) => request(`/api/analysis/${datasetId}/quality/duplicates?threshold=${threshold}`),
+  fuzzyDuplicates: (datasetId, threshold = 0.10) => request(`/api/analysis/${datasetId}/quality/duplicates?threshold=${threshold}`),
   validationRules: (datasetId) => request(`/api/analysis/${datasetId}/quality/rules`),
   dependencies: (datasetId) => request(`/api/analysis/${datasetId}/quality/dependencies`),
 

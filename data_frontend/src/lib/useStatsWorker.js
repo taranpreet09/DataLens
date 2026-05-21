@@ -7,17 +7,19 @@ import { useRef, useCallback } from 'react';
  * Usage:
  *   const computeStats = useStatsWorker();
  *   const stats = await computeStats(headers, rows);
+ *   // Reuse a backend-provided correlation matrix etc.:
+ *   const stats = await computeStats(headers, rows, existingStats);
  */
 export function useStatsWorker() {
   const workerRef = useRef(null);
 
-  const computeStats = useCallback((headers, rows) => {
+  const computeStats = useCallback((headers, rows, existingStats = null) => {
     return new Promise((resolve, reject) => {
       // For small datasets, compute synchronously to avoid Worker overhead
       if (rows.length < 500) {
         import('./statsEngine').then(({ computeAllStats }) => {
           try {
-            resolve(computeAllStats(headers, rows));
+            resolve(computeAllStats(headers, rows, existingStats));
           } catch (err) {
             reject(err);
           }
@@ -47,25 +49,25 @@ export function useStatsWorker() {
           }
         };
 
-        worker.onerror = (err) => {
+        worker.onerror = () => {
           worker.terminate();
           workerRef.current = null;
           // Fallback to synchronous
           import('./statsEngine').then(({ computeAllStats }) => {
             try {
-              resolve(computeAllStats(headers, rows));
+              resolve(computeAllStats(headers, rows, existingStats));
             } catch (syncErr) {
               reject(syncErr);
             }
           });
         };
 
-        worker.postMessage({ headers, rows });
+        worker.postMessage({ headers, rows, existingStats });
       } catch {
         // Workers not supported, fallback
         import('./statsEngine').then(({ computeAllStats }) => {
           try {
-            resolve(computeAllStats(headers, rows));
+            resolve(computeAllStats(headers, rows, existingStats));
           } catch (err) {
             reject(err);
           }

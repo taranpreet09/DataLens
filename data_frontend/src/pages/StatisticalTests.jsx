@@ -280,8 +280,10 @@ export default function StatisticalTests() {
 
         case 'paired-ttest': {
           if (!col1 || !col2) throw new Error('Select two numeric columns (before/after)');
+          if (col1 === col2) throw new Error('Pick two different columns — paired t-test compares before vs after measurements.');
           response = await analysisApi.pairedTTest(datasetId, { column1: col1, column2: col2 });
-          const r = response.result;
+          const r = response?.result;
+          if (!r) throw new Error(response?.message || 'Paired t-test could not be computed (insufficient or constant data).');
           formatted = {
             title: `Paired T-Test — ${col1} vs ${col2}`,
             summary: true,

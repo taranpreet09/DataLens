@@ -13,32 +13,39 @@ function getToken() {
 }
 
 // ─── Normalize backend stats shape to frontend expected shape ─────────────────
-// Backend returns: { qualityFlags: [...], totalNulls, nullPct, duplicateRowCount, categoricalStats.*.top5 }
-// Frontend expects: { qualityFlags: { totalNullCount, nullPct, duplicateRowCount, duplicatePct, flags, emptyRowCount }, categoricalStats.*.top10 }
+// The backend engine and the frontend engine emit overlapping but not identical
+// shapes. The backend in particular skips a few "view-only" derivations (it
+// doesn't need them server-side) — `histogramBuckets`, `categoryAggregations`,
+// `timeSeries`, `categoricalStats.*.top10`. We fill those in here so the
+// dashboard charts have something to read regardless of where the stats came
+// from. We also accept either qualityFlags shape: an array (legacy backend) or
+// the structured object the frontend (and the new backend) uses.
 function normalizeStats(stats) {
   if (!stats) return null;
 
-  // Already in frontend shape (has qualityFlags.totalNullCount)
-  if (stats.qualityFlags && typeof stats.qualityFlags === 'object' && !Array.isArray(stats.qualityFlags) && 'totalNullCount' in stats.qualityFlags) {
-    return stats;
-  }
-
-  // Convert backend shape → frontend shape
   const rowCount = stats.rowCount || 0;
   const dupeCount = stats.duplicateRowCount ?? stats.dupeCount ?? 0;
   const dupePct = rowCount > 0 ? parseFloat(((dupeCount / rowCount) * 100).toFixed(2)) : 0;
 
-  const normalized = {
-    ...stats,
-    qualityFlags: {
+  // Build the structured qualityFlags object, preserving fields if already structured.
+  let qualityFlags;
+  if (stats.qualityFlags && typeof stats.qualityFlags === 'object' && !Array.isArray(stats.qualityFlags) && 'totalNullCount' in stats.qualityFlags) {
+    // Already in frontend shape — keep as-is.
+    qualityFlags = stats.qualityFlags;
+  } else {
+    qualityFlags = {
       totalNullCount: stats.totalNulls ?? 0,
       nullPct: stats.nullPct ?? 0,
       duplicateRowCount: dupeCount,
       duplicatePct: dupePct,
       emptyRowCount: 0,
       flags: Array.isArray(stats.qualityFlags) ? stats.qualityFlags : [],
-    },
-    // Ensure these arrays exist even if backend doesn't compute them
+    };
+  }
+
+  const normalized = {
+    ...stats,
+    qualityFlags,
     numericColumns: stats.numericColumns || [],
     categoricalColumns: stats.categoricalColumns || [],
     dateColumns: stats.dateColumns || [],
@@ -49,40 +56,119 @@ function normalizeStats(stats) {
     categoryAggregations: stats.categoryAggregations || {},
     correlationInsights: stats.correlationInsights || [],
     correlationPairs: stats.correlationPairs || [],
-    anomalies: stats.anomalies || [],
+    anomalies: stats.anomalies || {},
     insights: stats.insights || [],
     primaryCol: stats.primaryCol || null,
     timeSeries: stats.timeSeries || null,
   };
 
-  // Normalize categoricalStats: backend uses top5, frontend expects top10
+  // Normalize categoricalStats: backend uses top5, frontend expects top10.
   if (normalized.categoricalStats) {
     for (const col of Object.keys(normalized.categoricalStats)) {
       const cs = normalized.categoricalStats[col];
-      if (cs && !cs.top10 && cs.top5) {
-        cs.top10 = cs.top5;
-      }
-      if (cs && !cs.top10) {
-        cs.top10 = [];
-      }
+      if (!cs) continue;
+      if (!cs.top10 && cs.top5) cs.top10 = cs.top5;
+      if (!cs.top10) cs.top10 = [];
     }
   }
 
-  // Compute primaryCol if missing — pick numeric column with highest variance, skip ID/phone-like columns
-  if (!normalized.primaryCol && normalized.numericColumns.length > 0 && normalized.numericStats) {
+  // Build view-only chart features the backend doesn't produce.
+  const numCols = normalized.numericColumns;
+  const numStats = normalized.numericStats || {};
+
+  // Histogram buckets — if backend skipped, derive from min/max/std using
+  // 7 even-width bins. Without raw rows we can't do exact counts, so we
+  // approximate via a normal distribution heuristic. That's enough for the
+  // dashboard "shape at a glance" without re-running stats client-side.
+  if (Object.keys(normalized.histogramBuckets).length === 0 && numCols.length > 0) {
+    for (const col of numCols) {
+      const s = numStats[col];
+      if (!s || s.min == null || s.max == null || s.min === s.max) continue;
+      const step = (s.max - s.min) / 7;
+      const moneyWords = /revenue|price|cost|amount|sales|profit|income|spend/i;
+      const fmt = moneyWords.test(col)
+        ? (v) => `$${Math.round(v).toLocaleString()}`
+        : (v) => Math.round(v).toLocaleString();
+      const total = s.nonNullCount ?? 0;
+      // Approximate bin counts via a triangular density centered on the mean.
+      const meanIdx = Math.max(0, Math.min(6, Math.floor((s.mean - s.min) / step)));
+      const weights = [1, 2, 3, 4, 3, 2, 1].map((w, i) => {
+        const dist = Math.abs(i - meanIdx);
+        return Math.max(1, w - dist);
+      });
+      const wSum = weights.reduce((a, b) => a + b, 0);
+      const bins = weights.map((w, i) => ({
+        range: `${fmt(s.min + i * step)} – ${fmt(s.min + (i + 1) * step)}`,
+        count: Math.round((w / wSum) * total),
+        isMode: i === meanIdx,
+      }));
+      const skewKnown = s.skewness != null && Number.isFinite(s.skewness);
+      normalized.histogramBuckets[col] = {
+        bins,
+        skewDirection: !skewKnown
+          ? 'unknown'
+          : (Math.abs(s.skewness) > 0.5 ? (s.skewness > 0 ? 'right-skewed' : 'left-skewed') : 'symmetric'),
+        skewValue: skewKnown ? s.skewness : null,
+        approximated: true,
+      };
+    }
+  }
+
+  // primaryCol — pick numeric column with highest variance, skip ID/phone-like columns.
+  if (!normalized.primaryCol && numCols.length > 0) {
     const skipPattern = /^(s\.?no\.?|id|serial|uuid|phone|mobile|tel|fax|zip|pin|postal)/i;
-    const candidates = normalized.numericColumns.filter(col => !skipPattern.test(col));
-    const pool = candidates.length > 0 ? candidates : normalized.numericColumns;
+    const candidates = numCols.filter((col) => !skipPattern.test(col));
+    const pool = candidates.length > 0 ? candidates : numCols;
     let bestCol = pool[0];
     let bestVariance = 0;
     for (const col of pool) {
-      const s = normalized.numericStats[col];
+      const s = numStats[col];
       if (s && (s.variance ?? 0) > bestVariance) {
         bestVariance = s.variance;
         bestCol = col;
       }
     }
     normalized.primaryCol = bestCol;
+  }
+
+  // Category aggregations — derive from categoricalStats.top10 + the chosen
+  // primaryCol when the backend didn't compute them. We don't have raw rows,
+  // so we surface a count-based view (label, count, pctOfTotal). The Donut
+  // chart renders fine with sum=count.
+  if (Object.keys(normalized.categoryAggregations).length === 0 && normalized.categoricalStats) {
+    const catKeys = Object.keys(normalized.categoricalStats);
+    const primary = normalized.primaryCol;
+    for (const col of catKeys.slice(0, 5)) {
+      const cs = normalized.categoricalStats[col];
+      const top = cs?.top10 || cs?.top5 || [];
+      if (!top.length) continue;
+      const total = top.reduce((a, t) => a + (t.count || 0), 0);
+      const top5 = top.slice(0, 5).map((t) => ({
+        label: t.value,
+        count: t.count,
+        sum: t.count,
+        mean: t.count,
+        pctOfTotal: total > 0 ? parseFloat(((t.count / total) * 100).toFixed(2)) : 0,
+      }));
+      const otherCount = top.slice(5).reduce((a, t) => a + (t.count || 0), 0);
+      const donut = [...top5];
+      if (otherCount > 0) {
+        donut.push({
+          label: 'Other',
+          count: otherCount,
+          sum: otherCount,
+          mean: otherCount,
+          pctOfTotal: total > 0 ? parseFloat(((otherCount / total) * 100).toFixed(2)) : 0,
+        });
+      }
+      normalized.categoryAggregations[col] = {
+        top5,
+        donut,
+        comparativeInsight: null,
+        primaryCol: primary,
+        approximated: true,
+      };
+    }
   }
 
   return normalized;
@@ -219,6 +305,10 @@ export function DatasetProvider({ children }) {
           parseTime: d.parseTime, createdAt: new Date(d.createdAt),
           status: d.status === 'ready' || (d.stats && d.status !== 'error') ? 'ready' : (d.status || 'saved'),
           rows: d.rows || [], dbId: d._id,
+          // Carry forward AI artifacts so panels can render them without
+          // re-invoking Bedrock / Python on every page visit.
+          narrative: d.narrative || null,
+          edaReport: d.edaReport || null,
         }));
 
         // 3. Sync local-only datasets to backend (uploaded as guest)
@@ -296,6 +386,8 @@ export function DatasetProvider({ children }) {
             rowCount: ds.rowCount || 0,
             stats: normalizeStats(ds.stats) || null,
             parseTime: ds.parseTime || 0,
+            narrative: ds.narrative || null,
+            edaReport: ds.edaReport || null,
           },
         });
       } else {
@@ -375,6 +467,8 @@ export function DatasetProvider({ children }) {
               rowCount: dataset.rowCount || 0,
               stats: normalizeStats(dataset.stats) || null,
               parseTime: dataset.parseTime || 0,
+              narrative: dataset.narrative || null,
+              edaReport: dataset.edaReport || null,
             },
           });
           return;

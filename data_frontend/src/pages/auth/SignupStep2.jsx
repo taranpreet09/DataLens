@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useSignup } from '../../context/SignupContext';
 
@@ -27,7 +27,7 @@ export default function SignupStep2() {
             Personal Details
           </h1>
           <p className="text-on-surface-variant font-body text-sm leading-relaxed">
-            Configure your professional identity within the Obsidian Analytics ecosystem. This information helps us tailor your insights.
+            Configure your professional identity within the Data Lens ecosystem. This information helps us tailor your insights.
           </p>
         </div>
 

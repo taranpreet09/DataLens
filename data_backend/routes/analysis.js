@@ -255,6 +255,12 @@ router.post('/:id/test/paired-ttest', async (req, res) => {
     if (!column1 || !column2) {
       return res.status(400).json({ message: 'column1 and column2 are required (before/after measurements).' });
     }
+    if (column1 === column2) {
+      return res.status(422).json({
+        code: 'IDENTICAL_COLUMNS',
+        message: 'Paired t-test requires two different columns (before vs after). Pick distinct measurements.',
+      });
+    }
 
     const dataset = await Dataset.findOne({ _id: req.params.id, userId: req.userId });
     if (!dataset) return res.status(404).json({ message: 'Dataset not found.' });
@@ -273,6 +279,12 @@ router.post('/:id/test/paired-ttest', async (req, res) => {
     }
 
     const result = pairedTTest(before, after);
+    if (!result) {
+      return res.status(422).json({
+        code: 'ZERO_VARIANCE',
+        message: 'The paired differences have zero variance (all pairs are identical). Cannot compute t-statistic.',
+      });
+    }
     res.json({
       test: 'paired_ttest',
       column1,
@@ -370,7 +382,7 @@ router.get('/:id/quality/duplicates', async (req, res) => {
     const dataset = await Dataset.findOne({ _id: req.params.id, userId: req.userId });
     if (!dataset) return res.status(404).json({ message: 'Dataset not found.' });
 
-    const threshold = parseFloat(req.query.threshold) || 0.15;
+    const threshold = parseFloat(req.query.threshold) || 0.10;
     const rows = await getDatasetRows(dataset, 10000);
     const result = findFuzzyDuplicates(rows, dataset.headers, threshold);
 

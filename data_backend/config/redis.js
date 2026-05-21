@@ -54,3 +54,23 @@ export async function cacheDel(key) {
     // Non-critical
   }
 }
+
+/**
+ * Delete all keys matching a glob pattern using SCAN (non-blocking).
+ * Use this instead of cacheDel with wildcards.
+ */
+export async function cacheDelPattern(pattern) {
+  try {
+    const conn = getRedisConnection();
+    let cursor = '0';
+    do {
+      const [nextCursor, keys] = await conn.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+      cursor = nextCursor;
+      if (keys.length > 0) {
+        await conn.del(...keys);
+      }
+    } while (cursor !== '0');
+  } catch {
+    // Non-critical
+  }
+}

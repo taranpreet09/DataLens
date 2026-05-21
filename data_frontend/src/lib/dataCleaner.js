@@ -1,4 +1,4 @@
-// ─── Obsidian Analytics — Smart Data Cleansing Engine ────────────────────────────────────
+﻿// ─── Data Lens — Smart Data Cleansing Engine ────────────────────────────────────
 // Pure utility module. Zero React dependencies.
 // Provides 1-click data standardization for messy CSV/Excel imports.
 

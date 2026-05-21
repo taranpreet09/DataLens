@@ -1,8 +1,8 @@
-# Implementation Plan: Intelligence Layer
+﻿# Implementation Plan: Intelligence Layer
 
 ## Overview
 
-The Intelligence Layer ships in four LLM-assisted slices on top of Obsidian Analytics:
+The Intelligence Layer ships in four LLM-assisted slices on top of Data Lens:
 
 - **5a — Natural Language Queries:** plain-English questions → `AnalysisIntent` → existing analysis handlers.
 - **5b — Auto-Generated Narratives:** stats → multi-section markdown.

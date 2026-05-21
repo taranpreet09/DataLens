@@ -1,10 +1,10 @@
-# Design Document — Intelligence Layer
+﻿# Design Document — Intelligence Layer
 
 > **Naming constraint.** This feature is implemented as the *Intelligence Layer*. New files, services, route paths, environment-variable subsystem labels, log feature names, and identifiers MUST NOT use `phase3`, `phase4`, or `phase5`. The legacy file `data_backend/routes/phase3.js` is not modified by this feature and is not a template for new naming. Node routes are mounted at `/api/intelligence/*`. Python routes live under `/intelligence/nlp/*` and `/intelligence/eda/*`.
 
 ## Overview
 
-The Intelligence Layer adds four LLM-assisted capabilities on top of Obsidian Analytics:
+The Intelligence Layer adds four LLM-assisted capabilities on top of Data Lens:
 
 - **5a — Natural Language Queries:** plain-English questions are translated into structured `AnalysisIntent` objects and dispatched to existing analysis handlers (descriptive stats, correlation, regression, k-means, anomaly detection, forecasting, FFT, statistical tests).
 - **5b — Auto-Generated Report Narratives:** the dataset's pre-computed `stats` object is summarised into a multi-section markdown narrative.

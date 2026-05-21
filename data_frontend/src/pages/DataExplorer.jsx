@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDataset } from '../context/DatasetContext';
 import { useAuth } from '../context/AuthContext';
 import QualityFlagChips from '../components/ui/QualityFlagChips';
 import { detectDirtyColumns } from '../lib/dataCleaner';
 import { generateDataStories } from '../lib/dataStoryteller';
+import { datasetsApi } from '../lib/api';
 
 function formatBytes(bytes) {
   if (!bytes) return '—';
@@ -38,8 +39,58 @@ export default function DataExplorer() {
 
   const ds = activeDataset;
   const stats = ds?.stats;
-  const totalPages = ds ? Math.ceil(ds.rows.length / PAGE_SIZE) : 0;
-  const pageRows = ds ? ds.rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) : [];
+  const rowCount = ds?.rowCount ?? ds?.rows?.length ?? 0;
+  const totalPages = ds ? Math.max(1, Math.ceil(rowCount / PAGE_SIZE)) : 0;
+  const safePage = Math.min(page, totalPages || 1);
+
+  // Server-side row pagination cache: keyed by `${dsId}:${page}`.
+  // Populated lazily when the dataset has no in-memory rows (typical for
+  // datasets loaded from the backend listing, which strips rows for payload
+  // size). When rows are present in memory we skip the fetch entirely.
+  const [serverRowsByPage, setServerRowsByPage] = useState({});
+  const [rowsLoading, setRowsLoading] = useState(false);
+  const [rowsError, setRowsError] = useState(null);
+
+  const hasInMemoryRows = ds?.rows?.length > 0;
+  const cacheKey = ds ? `${ds.id}:${safePage}` : null;
+  const pageRows = ds
+    ? hasInMemoryRows
+      ? ds.rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+      : (serverRowsByPage[cacheKey] || [])
+    : [];
+
+  // Reset to page 1 whenever the active dataset changes so a stale page index
+  // from a larger dataset doesn't slice past the end of a smaller one.
+  useEffect(() => {
+    setPage(1);
+    setRowsError(null);
+  }, [ds?.id]);
+
+  // Lazy-fetch the current page from the backend when rows aren't in memory.
+  useEffect(() => {
+    if (!ds || hasInMemoryRows || !ds.dbId || viewMode !== 'table') return;
+    if (serverRowsByPage[cacheKey]) return; // already cached
+
+    let cancelled = false;
+    setRowsLoading(true);
+    setRowsError(null);
+    datasetsApi
+      .getRows(ds.dbId, safePage, PAGE_SIZE)
+      .then((res) => {
+        if (cancelled) return;
+        setServerRowsByPage((prev) => ({ ...prev, [cacheKey]: res.rows || [] }));
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setRowsError(err.message || 'Could not load rows.');
+      })
+      .finally(() => {
+        if (!cancelled) setRowsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ds?.id, ds?.dbId, hasInMemoryRows, viewMode, safePage, cacheKey]);
 
   // Detect dirty columns for the "Standardize" preview
   const dirtyColumns = useMemo(() => {
@@ -363,9 +414,21 @@ export default function DataExplorer() {
                         )}
                       </td>
                       <td className="px-5 py-4 font-mono text-xs">
-                        <span className={Math.abs(s.skewness) > 0.5 ? 'text-amber-400' : ''}>{s.skewness}</span>
+                        <span className={Math.abs(s.skewness ?? 0) > 0.5 ? 'text-amber-400' : ''}>{s.skewness ?? '—'}</span>
                       </td>
-                      <td className="px-5 py-4 font-mono text-xs">{s.cv ?? '—'}</td>
+                      <td className="px-5 py-4 font-mono text-xs">{
+                        (() => {
+                          const cvFraction = s.coefficientOfVariation != null
+                            ? s.coefficientOfVariation
+                            : (s.cv != null
+                                ? (typeof s.cv === 'number' ? s.cv : parseFloat(s.cv))
+                                : (s.mean && s.stdDev != null ? Math.abs(s.stdDev / s.mean) : null));
+                          if (cvFraction == null || !isFinite(cvFraction)) return '—';
+                          // Display as percentage if fraction (< 5), otherwise assume already pct
+                          const pct = cvFraction < 5 ? cvFraction * 100 : cvFraction;
+                          return `${pct.toFixed(1)}%`;
+                        })()
+                      }</td>
                     </tr>
                   );
                 })}
@@ -389,7 +452,7 @@ export default function DataExplorer() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xl font-bold font-headline">{ds.name}</h2>
-              <p className="text-sm text-on-surface-variant">{ds.rowCount?.toLocaleString()} rows · {ds.headers?.length} columns · Page {page} of {totalPages}</p>
+              <p className="text-sm text-on-surface-variant">{ds.rowCount?.toLocaleString()} rows · {ds.headers?.length} columns · Page {safePage} of {totalPages}</p>
             </div>
           </div>
 
@@ -411,7 +474,7 @@ export default function DataExplorer() {
               <tbody className="divide-y divide-outline-variant/10">
                 {pageRows.map((row, i) => (
                   <tr key={i} className="hover:bg-surface-bright transition-colors">
-                    <td className="px-4 py-3 text-on-surface-variant text-[10px] font-mono">{(page - 1) * PAGE_SIZE + i + 1}</td>
+                    <td className="px-4 py-3 text-on-surface-variant text-[10px] font-mono">{(safePage - 1) * PAGE_SIZE + i + 1}</td>
                     {ds.headers.map(h => (
                       <td key={h} className="px-4 py-3 font-mono text-xs whitespace-nowrap max-w-[200px] overflow-hidden text-ellipsis">
                         {row[h] === null || row[h] === undefined || row[h] === ''
@@ -424,25 +487,36 @@ export default function DataExplorer() {
                     ))}
                   </tr>
                 ))}
+                {pageRows.length === 0 && (
+                  <tr>
+                    <td colSpan={ds.headers.length + 1} className="px-4 py-12 text-center text-sm text-on-surface-variant">
+                      {rowsLoading
+                        ? 'Loading rows…'
+                        : rowsError
+                          ? <span className="text-error">{rowsError}</span>
+                          : 'No rows to display.'}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
 
           {/* Pagination */}
           <div className="flex items-center justify-between text-sm text-on-surface-variant">
-            <span>Rows {((page - 1) * PAGE_SIZE + 1).toLocaleString()}–{Math.min(page * PAGE_SIZE, ds.rowCount).toLocaleString()} of {ds.rowCount?.toLocaleString()}</span>
+            <span>Rows {((safePage - 1) * PAGE_SIZE + 1).toLocaleString()}–{Math.min(safePage * PAGE_SIZE, rowCount).toLocaleString()} of {rowCount.toLocaleString()}</span>
             <div className="flex gap-2">
-              <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
+              <button disabled={safePage === 1} onClick={() => setPage(p => Math.max(1, p - 1))}
                 className="px-3 py-1.5 rounded-lg bg-surface-container-high hover:bg-surface-bright disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer text-xs font-medium">← Prev</button>
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                const p = Math.max(1, Math.min(totalPages - 4, page - 2)) + i;
+                const p = Math.max(1, Math.min(totalPages - 4, safePage - 2)) + i;
                 return (
                   <button key={p} onClick={() => setPage(p)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${p === page ? 'bg-primary text-on-primary' : 'bg-surface-container-high hover:bg-surface-bright'}`}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${p === safePage ? 'bg-primary text-on-primary' : 'bg-surface-container-high hover:bg-surface-bright'}`}
                   >{p}</button>
                 );
               })}
-              <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)}
+              <button disabled={safePage >= totalPages} onClick={() => setPage(p => p + 1)}
                 className="px-3 py-1.5 rounded-lg bg-surface-container-high hover:bg-surface-bright disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer text-xs font-medium">Next →</button>
             </div>
           </div>

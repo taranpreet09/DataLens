@@ -1,4 +1,4 @@
-import { useAuth } from '../context/AuthContext';
+﻿import { useAuth } from '../context/AuthContext';
 
 export default function Topbar({ onMenuToggle }) {
   const { user } = useAuth();
@@ -11,7 +11,7 @@ export default function Topbar({ onMenuToggle }) {
         </button>
 
         <div className="flex items-center gap-4 lg:gap-6 min-w-0">
-          <div className="text-base lg:text-xl font-bold text-[#94aaff] tracking-widest uppercase truncate">Obsidian Analytics</div>
+          <div className="text-base lg:text-xl font-bold text-[#94aaff] tracking-widest uppercase truncate">Data Lens</div>
         </div>
       </div>
       <div className="flex items-center gap-2 lg:gap-4 shrink-0">

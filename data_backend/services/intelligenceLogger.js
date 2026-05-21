@@ -28,6 +28,7 @@ const REDACTED_PLACEHOLDER = '[redacted]';
  */
 const RETRYABLE_CODES = new Set([
   'LLM_TIMEOUT',
+  'BEDROCK_TIMEOUT',       // Legacy alias (pre-Gemini migration)
   'INTENT_PARSE_ERROR',
   'INCOMPLETE_NARRATIVE',
   'LLM_RATE_LIMITED',

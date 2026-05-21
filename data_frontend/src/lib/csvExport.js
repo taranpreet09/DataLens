@@ -1,4 +1,4 @@
-
+﻿
 
 function escapeCSV(val) {
   if (val === null || val === undefined) return '';
@@ -29,7 +29,7 @@ export function toCSVString(headers, rows) {
  * @param {object[]} rows
  * @param {string} filename
  */
-export function downloadCSV(headers, rows, filename = 'Obsidian Analytics-Export.csv') {
+export function downloadCSV(headers, rows, filename = 'Data Lens-Export.csv') {
   const csvContent = toCSVString(headers, rows);
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);

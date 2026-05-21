@@ -43,11 +43,17 @@ def run_profile(df: pd.DataFrame, minimal: bool = True) -> dict[str, Any]:
     """
     try:
         from ydata_profiling import ProfileReport  # type: ignore
-    except ImportError:
+    except ImportError as exc:
+        # Common cause: ydata-profiling is genuinely missing.
+        # Less obvious cause: ydata-profiling is installed but a transitive
+        # dep (numba, numpy, etc.) failed to import. Surface the underlying
+        # error so the operator can fix the right thing.
         raise RuntimeError(
-            "ydata-profiling is not installed. "
-            "Run: pip install ydata-profiling"
-        )
+            f"ydata-profiling could not be imported: {exc.__class__.__name__}: {exc}. "
+            f"If the package is installed, this usually means a dependency "
+            f"version conflict (commonly numba/numpy). "
+            f"Run: pip install ydata-profiling"
+        ) from exc
 
     report = ProfileReport(df, minimal=minimal, progress_bar=False)
     profile_dict = report.to_json()

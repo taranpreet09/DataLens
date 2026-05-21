@@ -1,4 +1,4 @@
-// ─── Obsidian Analytics — Plain-English Data Storytelling Engine ─────────────────────────
+﻿// ─── Data Lens — Plain-English Data Storytelling Engine ─────────────────────────
 // Translates raw statistical findings into human-readable narratives.
 // Zero React dependencies. Pure functions.
 
@@ -160,7 +160,7 @@ export function generateDataStories(stats) {
   // ── 8. Skewness warnings ────────────────────────────────────────────────
   const skewedCols = stats.numericColumns.filter(c => {
     const s = stats.numericStats[c];
-    return s && Math.abs(s.skewness) > 1;
+    return s && s.skewness != null && Math.abs(s.skewness) > 1;
   });
   if (skewedCols.length > 0) {
     const col = skewedCols[0];

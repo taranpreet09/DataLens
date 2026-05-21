@@ -13,7 +13,7 @@ import { PARSED_DIR } from '../config/storage.js';
  * @returns {{ headers, rowCount, parsedFilePath, sampleRows }}
  */
 export async function streamParseExcel(filePath, datasetId, onProgress = null) {
-  const XLSX = await import('xlsx');
+  const XLSX = (await import('xlsx')).default;
   const outputPath = path.join(PARSED_DIR, `${datasetId}.jsonl`);
 
   // Read workbook (streaming mode for large files)

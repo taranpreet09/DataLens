@@ -1,11 +1,11 @@
-import { jsPDF } from 'jspdf';
+﻿import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 /**
  * Generates a professional, text-selectable, formal business PDF Report 
  * computationally populated by the dataset stats logic natively.
  *
- * @param {Object} ds       - The Obsidian Analytics activeDataset object containing .stats
+ * @param {Object} ds       - The Data Lens activeDataset object containing .stats
  * @param {Object} options  - Optional: { includeNarrative: true, includeEda: true }
  * @param {string} filename - Output filename
  */
@@ -15,7 +15,7 @@ export async function exportReportToPDF(ds, options = {}, filename) {
     filename = options;
     options = {};
   }
-  if (!filename) filename = 'Obsidian Analytics-Report.pdf';
+  if (!filename) filename = 'Data Lens-Report.pdf';
 
   const { includeNarrative = true, includeEda = true } = options;
 
@@ -26,13 +26,13 @@ export async function exportReportToPDF(ds, options = {}, filename) {
   const pdf = new jsPDF('p', 'mm', 'a4');
   
   // Theme constants
-  const primaryColor = [148, 170, 255]; // Represents the Obsidian Analytics brand blueish-violet
+  const primaryColor = [148, 170, 255]; // Represents the Data Lens brand blueish-violet
   const errorColor = [220, 53, 69];
 
   // ─── PAGE 1: Executive Summary ──────────────────────────────────────────
   pdf.setFontSize(26);
   pdf.setTextColor(20, 20, 24); 
-  pdf.text('Obsidian Analytics Analytical Report', 14, 24);
+  pdf.text('Data Lens Analytical Report', 14, 24);
   
   pdf.setFontSize(10);
   pdf.setTextColor(120, 120, 120);
@@ -110,7 +110,7 @@ export async function exportReportToPDF(ds, options = {}, filename) {
         s ? Number(s.min.toFixed(2)).toLocaleString() : 'NA',
         s ? Number(s.max.toFixed(2)).toLocaleString() : 'NA',
         s ? Number(s.stdDev.toFixed(2)).toLocaleString() : 'NA',
-        s ? s.skewness.toFixed(2) : 'NA'
+        s && s.skewness != null ? s.skewness.toFixed(2) : 'NA'
       ];
     });
     

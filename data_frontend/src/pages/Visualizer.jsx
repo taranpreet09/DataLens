@@ -191,10 +191,10 @@ export default function Visualizer() {
               </div>
 
               {/* Skew annotation */}
-              {!stats.timeSeries && histData && histData.skewDirection && histData.skewDirection !== 'symmetric' && (
+              {!stats.timeSeries && histData && histData.skewDirection && histData.skewDirection !== 'symmetric' && histData.skewDirection !== 'unknown' && (
                 <p className="text-[10px] text-amber-400 mt-3 flex items-center gap-1">
                   <span className="material-symbols-outlined text-xs">info</span>
-                  Distribution is {histData.skewDirection} (skewness: {histData.skewValue})
+                  Distribution is {histData.skewDirection} (skewness: {histData.skewValue ?? '—'})
                 </p>
               )}
 
@@ -267,7 +267,13 @@ export default function Visualizer() {
               ) : (
                 <div className="flex-1 flex flex-col items-center justify-center gap-3 opacity-40">
                   <span className="material-symbols-outlined text-3xl">category</span>
-                  <p className="text-xs text-on-surface-variant text-center">No categorical columns detected</p>
+                  <p className="text-xs text-on-surface-variant text-center">
+                    {(stats?.categoricalColumns?.length ?? 0) === 0
+                      ? 'No categorical columns detected'
+                      : (stats?.numericColumns?.length ?? 0) === 0
+                        ? 'Need at least one numeric column to aggregate by category'
+                        : 'Aggregating…'}
+                  </p>
                 </div>
               )}
             </div>

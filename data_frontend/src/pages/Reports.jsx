@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useDataset } from '../context/DatasetContext';
 import { exportReportToPDF } from '../lib/pdfExport';
 import { datasetsApi } from '../lib/api';
@@ -24,7 +24,7 @@ export default function Reports() {
     if (isExporting || !ds) return;
     setIsExporting(true);
     try {
-      await exportReportToPDF(ds, { includeNarrative: true, includeEda: true }, `Obsidian Analytics-Report-${ds.name.split('.')[0]}.pdf`);
+      await exportReportToPDF(ds, { includeNarrative: true, includeEda: true }, `Data Lens-Report-${ds.name.split('.')[0]}.pdf`);
     } catch (e) {
       console.error('PDF Export Error:', e);
       alert(`Failed to generate PDF: ${e.message || String(e)}`);
@@ -187,8 +187,8 @@ export default function Reports() {
 
           <div className="grid grid-cols-12 gap-4 lg:gap-6">
 
-          {/* ── Time Series Overview ── */}
-          <div className="col-span-12 lg:col-span-8 bg-surface-container-low rounded-2xl border border-outline-variant/5 p-5 sm:p-8 relative min-w-0 overflow-hidden">
+          {/* ── Time Series Overview (full width) ── */}
+          <div className="col-span-12 bg-surface-container-low rounded-2xl border border-outline-variant/5 p-5 sm:p-8 relative min-w-0 overflow-hidden">
             <div className="flex justify-between items-start mb-6">
               <div>
                 <h3 className="text-xl font-bold font-headline mb-1">
@@ -209,7 +209,7 @@ export default function Reports() {
                   trendDirection={stats.timeSeries.trendDirection}
                 />
               ) : (
-                <div className="grid grid-cols-2 gap-4 h-full">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 h-full">
                   {numCols.slice(0, 4).map(col => {
                     const s = stats.numericStats?.[col];
                     return s ? (
@@ -227,8 +227,8 @@ export default function Reports() {
             </div>
           </div>
 
-          {/* ── Section 5: Correlation Matrix ── */}
-          <div className="col-span-12 lg:col-span-4 bg-surface-container-low rounded-2xl border border-outline-variant/5 p-5 sm:p-8 min-w-0">
+          {/* ── Correlation Matrix (full width) ── */}
+          <div className="col-span-12 bg-surface-container-low rounded-2xl border border-outline-variant/5 p-5 sm:p-8 min-w-0">
             <h3 className="text-xl font-bold font-headline mb-4">Correlation Matrix</h3>
             <CorrelationHeatmap
               matrix={stats.correlationMatrix}
@@ -360,7 +360,7 @@ export default function Reports() {
     )}
 
       <footer className="print:hidden mt-16 py-8 border-t border-outline-variant/5 flex justify-between items-center text-[10px] text-on-surface-variant uppercase tracking-[0.2em]">
-        <div>© 2025 Obsidian Analytics Engine</div>
+        <div>© 2025 Data Lens Engine</div>
         <div className="flex gap-6">
           <a className="hover:text-primary transition-colors cursor-pointer">Documentation</a>
           <a className="hover:text-primary transition-colors cursor-pointer">System Status</a>

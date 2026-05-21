@@ -1,5 +1,5 @@
 import { Queue, Worker } from 'bullmq';
-import { getRedisConnection, cacheDel } from '../config/redis.js';
+import { getRedisConnection, cacheDel, cacheDelPattern } from '../config/redis.js';
 import { parseFile, readAllRows, stratifiedSample } from './fileParser.js';
 import { computeAllStats } from './statsEngine.js';
 import Dataset from '../models/Dataset.js';
@@ -135,12 +135,7 @@ async function processJob(job) {
     // Purge Redis narrative cache keys for this dataset (pattern-based delete).
     // Keys follow: intelligence:narrative:{datasetId}:*
     try {
-      const conn = getRedisConnection();
-      const pattern = `intelligence:narrative:${datasetId}:*`;
-      const keys = await conn.keys(pattern);
-      if (keys.length > 0) {
-        await Promise.all(keys.map(k => cacheDel(k)));
-      }
+      await cacheDelPattern(`intelligence:narrative:${datasetId}:*`);
     } catch {
       // Non-critical — cache will expire naturally.
     }

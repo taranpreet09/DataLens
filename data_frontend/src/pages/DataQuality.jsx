@@ -237,21 +237,28 @@ export default function DataQuality() {
                 {dupesResult.columnsUsed?.length > 0 && (
                   <p className="text-xs text-on-surface-variant">Compared using: {dupesResult.columnsUsed.join(', ')}</p>
                 )}
-                {dupesResult.duplicateGroups?.slice(0, 5).map((group, i) => (
-                  <div key={i} className="bg-surface-container-low rounded-xl p-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs font-bold text-on-surface-variant">Group {i + 1}</span>
-                      <span className="text-[10px] bg-amber-400/10 text-amber-400 px-1.5 py-0.5 rounded">{group.indices.length} rows · {Math.round(group.similarity * 100)}% similar</span>
+                {dupesResult.duplicateGroups?.slice(0, 5).map((group, i) => {
+                  const rowCount = group.rowCount ?? group.indices?.length ?? group.sampleRows?.length ?? 0;
+                  const shownRows = (group.sampleRows ?? []).slice(0, Math.min(rowCount, 4));
+                  return (
+                    <div key={i} className="bg-surface-container-low rounded-xl p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xs font-bold text-on-surface-variant">Group {i + 1}</span>
+                        <span className="text-[10px] bg-amber-400/10 text-amber-400 px-1.5 py-0.5 rounded">{rowCount} rows · {Math.round((group.similarity ?? 0) * 100)}% similar</span>
+                      </div>
+                      <div className="space-y-1">
+                        {shownRows.map((row, j) => (
+                          <p key={j} className="text-xs text-on-surface-variant truncate font-mono">
+                            {Object.values(row).slice(0, 5).join(' | ')}
+                          </p>
+                        ))}
+                        {rowCount > shownRows.length && (
+                          <p className="text-[10px] text-on-surface-variant/60 italic">+ {rowCount - shownRows.length} more row{rowCount - shownRows.length === 1 ? '' : 's'} in this group</p>
+                        )}
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      {group.sampleRows?.slice(0, 2).map((row, j) => (
-                        <p key={j} className="text-xs text-on-surface-variant truncate font-mono">
-                          {Object.values(row).slice(0, 5).join(' | ')}
-                        </p>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </SectionCard>

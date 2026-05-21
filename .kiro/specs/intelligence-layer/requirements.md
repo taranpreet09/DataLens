@@ -1,8 +1,8 @@
-# Requirements Document
+﻿# Requirements Document
 
 ## Introduction
 
-The Intelligence Layer adds LLM-powered capabilities on top of the existing Obsidian Analytics platform. It is delivered as four sub-features that can ship independently:
+The Intelligence Layer adds LLM-powered capabilities on top of the existing Data Lens platform. It is delivered as four sub-features that can ship independently:
 
 - **5a — Natural Language Queries (#31, Node/TS):** users ask questions in plain English; the system parses intent, dispatches the matching existing analysis (Phase 1–4), and returns the result with a short explanation.
 - **5b — Auto-Generated Report Narratives (#32, Node/TS):** the system produces a multi-paragraph executive narrative for a dataset by summarising pre-computed stats through an LLM, rendered as markdown and exportable via the existing PDF path.

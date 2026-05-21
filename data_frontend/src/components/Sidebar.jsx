@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+﻿import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function Sidebar({ isOpen, onClose }) {
@@ -28,7 +28,7 @@ export default function Sidebar({ isOpen, onClose }) {
               <span className="material-symbols-outlined text-on-primary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>architecture</span>
             </div>
             <div>
-              <h1 className="font-['Manrope'] font-black uppercase tracking-tighter text-[#94aaff] text-lg leading-none">Obsidian Analytics</h1>
+              <h1 className="font-['Manrope'] font-black uppercase tracking-tighter text-[#94aaff] text-lg leading-none">Data Lens</h1>
               <span className="text-[10px] text-on-surface-variant tracking-widest uppercase opacity-70">Analytics Platform</span>
             </div>
           </div>

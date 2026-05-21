@@ -71,7 +71,7 @@ Privacy posture: only schema, column profiles, pre-computed stats, and at most 1
 - `.xlsx`
 - `.xls`
 
-Uploads are limited in the frontend to 10 MB per file. The backend accepts JSON payloads up to 50 MB.
+Uploads are limited to 500 MB per file in both the browser client and the Node backend.
 
 ## Technology Stack
 

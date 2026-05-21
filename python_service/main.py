@@ -1,5 +1,5 @@
-"""
-Obsidian Analytics — Python Analytics Service
+﻿"""
+Data Lens — Python Analytics Service
 Handles advanced ML tasks that Node/TS can't do well:
 - SHAP explanations
 - Auto-ML (FLAML)
@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 app = FastAPI(
-    title="Obsidian Analytics - Python Service",
+    title="Data Lens - Python Service",
     version="1.0.0",
     description="Advanced ML analytics service",
 )

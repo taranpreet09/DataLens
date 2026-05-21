@@ -1,0 +1,55 @@
+{
+  "generatedAt": "2026-05-21T18:26:44.103Z",
+  "csvTargetBytes": 110100480,
+  "excelTargetRangeBytes": [
+    5242880,
+    10485760
+  ],
+  "files": [
+    {
+      "role": "Sales and Marketing",
+      "csv": "sales_marketing_growth_analytics_100mb.csv",
+      "csvRows": 321908,
+      "csvBytes": 110100568,
+      "xlsx": "sales_marketing_growth_dashboard.xlsx",
+      "xlsxRows": 18000,
+      "xlsxBytes": 5599360
+    },
+    {
+      "role": "Finance",
+      "csv": "finance_revenue_transactions_100mb.csv",
+      "csvRows": 462868,
+      "csvBytes": 110100516,
+      "xlsx": "finance_revenue_dashboard.xlsx",
+      "xlsxRows": 26100,
+      "xlsxBytes": 7177905
+    },
+    {
+      "role": "Operations",
+      "csv": "operations_supply_chain_100mb.csv",
+      "csvRows": 471152,
+      "csvBytes": 110100572,
+      "xlsx": "operations_supply_chain_dashboard.xlsx",
+      "xlsxRows": 26100,
+      "xlsxBytes": 7581702
+    },
+    {
+      "role": "Customer Support",
+      "csv": "customer_support_tickets_100mb.csv",
+      "csvRows": 397722,
+      "csvBytes": 110100589,
+      "xlsx": "customer_support_dashboard.xlsx",
+      "xlsxRows": 26100,
+      "xlsxBytes": 6771884
+    },
+    {
+      "role": "HR and People Ops",
+      "csv": "hr_workforce_analytics_100mb.csv",
+      "csvRows": 490940,
+      "csvBytes": 110100555,
+      "xlsx": "hr_workforce_dashboard.xlsx",
+      "xlsxRows": 26100,
+      "xlsxBytes": 7032997
+    }
+  ]
+}

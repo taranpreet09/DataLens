@@ -1,4 +1,4 @@
-import 'dotenv/config';
+﻿import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
@@ -148,7 +148,7 @@ async function start() {
   }
 
   httpServer.listen(PORT, () => {
-    console.log(`🚀 Obsidian Analytics API running on http://localhost:${PORT}`);
+    console.log(`🚀 Data Lens API running on http://localhost:${PORT}`);
     console.log(`🔌 WebSocket server ready`);
   });
 }

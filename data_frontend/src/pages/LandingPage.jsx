@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDataset } from '../context/DatasetContext';
 import { useAuth } from '../context/AuthContext';
@@ -14,8 +14,30 @@ function formatBytes(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+// Which info blocks the user can show/hide on the side panel.
+const PANEL_SECTIONS = [
+  { id: 'quality',     label: 'Quality score' },
+  { id: 'quickStats',  label: 'Rows / Cols / Size / Parse' },
+  { id: 'primaryCol',  label: 'Primary column summary' },
+  { id: 'missingDupe', label: 'Nulls & duplicates' },
+];
+const PANEL_PREFS_KEY = 'datalens_landing_panel_visibility';
+const DEFAULT_PANEL_VISIBILITY = Object.fromEntries(PANEL_SECTIONS.map((s) => [s.id, true]));
+
+function loadPanelPrefs() {
+  if (typeof window === 'undefined') return DEFAULT_PANEL_VISIBILITY;
+  try {
+    const raw = window.localStorage.getItem(PANEL_PREFS_KEY);
+    if (!raw) return DEFAULT_PANEL_VISIBILITY;
+    const parsed = JSON.parse(raw);
+    return { ...DEFAULT_PANEL_VISIBILITY, ...parsed };
+  } catch {
+    return DEFAULT_PANEL_VISIBILITY;
+  }
+}
+
 export default function LandingPage() {
-  const { datasets, uploadDataset, deleteDataset, setActive } = useDataset();
+  const { datasets, activeDataset, uploadDataset, deleteDataset, setActive } = useDataset();
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
@@ -24,6 +46,31 @@ export default function LandingPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadFileName, setUploadFileName] = useState('');
   const [pendingDatasetId, setPendingDatasetId] = useState(null);
+  const [panelVisibility, setPanelVisibility] = useState(loadPanelPrefs);
+  const [showCustomize, setShowCustomize] = useState(false);
+  const customizeRef = useRef(null);
+
+  // Persist panel preferences.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(PANEL_PREFS_KEY, JSON.stringify(panelVisibility));
+    } catch { /* ignore quota errors */ }
+  }, [panelVisibility]);
+
+  // Close customize popover on outside click.
+  useEffect(() => {
+    if (!showCustomize) return;
+    const handler = (e) => {
+      if (customizeRef.current && !customizeRef.current.contains(e.target)) {
+        setShowCustomize(false);
+      }
+    };
+    window.addEventListener('mousedown', handler);
+    return () => window.removeEventListener('mousedown', handler);
+  }, [showCustomize]);
+
+  const togglePanel = (id) => setPanelVisibility((prev) => ({ ...prev, [id]: !prev[id] }));
+  const showAllPanels = () => setPanelVisibility(DEFAULT_PANEL_VISIBILITY);
 
   // Watch for pending dataset to become ready, then navigate
   useEffect(() => {
@@ -81,9 +128,16 @@ export default function LandingPage() {
   const onDragLeave = () => setDragOver(false);
   const handleExplore = (id) => { setActive(id); navigate('/workspace?tab=explore'); };
 
-  // Get first ready dataset stats for dashboard overview
-  const activeDs = datasets.find(d => d.status === 'ready');
+  // Datasets that have been parsed and are eligible for the side-panel preview.
+  const readyDatasets = useMemo(() => datasets.filter((d) => d.status === 'ready'), [datasets]);
+
+  // Prefer the user's active dataset; fall back to the first ready one.
+  const activeDs = useMemo(() => {
+    if (activeDataset && activeDataset.status === 'ready') return activeDataset;
+    return readyDatasets[0] ?? null;
+  }, [activeDataset, readyDatasets]);
   const stats = activeDs?.stats;
+  const visibleSectionCount = PANEL_SECTIONS.filter((s) => panelVisibility[s.id]).length;
 
   return (
     <div className="p-4 sm:p-6 lg:p-12 h-full">
@@ -95,7 +149,7 @@ export default function LandingPage() {
             Scale your <span className="text-primary">Intelligence</span>.
           </h1>
           <p className="text-on-surface-variant text-base lg:text-lg max-w-2xl leading-relaxed">
-            Drag your structured datasets into the Obsidian Analytics core. Our engine will architect the relationships, outliers, and projections automatically.
+            Drag your structured datasets into the Data Lens core. Our engine will architect the relationships, outliers, and projections automatically.
           </p>
         </header>
 
@@ -134,21 +188,96 @@ export default function LandingPage() {
 
           {/* Side Panel — Dataset Overview Stats */}
           <div className="lg:col-span-4 flex flex-col gap-4">
+            {/* Dataset picker + customize: always visible when at least one dataset is ready */}
+            {readyDatasets.length > 0 && (
+              <div className="rounded-xl bg-surface-container-high p-3 border border-outline-variant/10 space-y-3">
+                <label className="block">
+                  <span className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Preview dataset</span>
+                  <select
+                    value={activeDs?.id ?? ''}
+                    onChange={(e) => setActive(e.target.value)}
+                    className="mt-1 w-full bg-surface-container-highest text-on-surface text-sm rounded-md border border-outline-variant/20 px-2 py-1.5 focus:outline-none focus:border-primary cursor-pointer"
+                  >
+                    {readyDatasets.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name || d.fileName || d.id}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="relative" ref={customizeRef}>
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomize((v) => !v)}
+                    className="w-full flex items-center justify-between text-xs text-on-surface-variant hover:text-on-surface bg-surface-container-highest hover:bg-surface-bright rounded-md px-3 py-2 transition-colors cursor-pointer"
+                    aria-expanded={showCustomize}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-base">tune</span>
+                      Customize panel
+                    </span>
+                    <span className="text-[10px] font-bold text-on-surface-variant">
+                      {visibleSectionCount}/{PANEL_SECTIONS.length}
+                    </span>
+                  </button>
+                  {showCustomize && (
+                    <div className="absolute z-10 right-0 mt-2 w-full rounded-lg bg-surface-container-highest border border-outline-variant/20 shadow-2xl p-2 space-y-1">
+                      {PANEL_SECTIONS.map((section) => (
+                        <label
+                          key={section.id}
+                          className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-surface-bright cursor-pointer text-xs"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={!!panelVisibility[section.id]}
+                            onChange={() => togglePanel(section.id)}
+                            className="accent-primary"
+                          />
+                          <span>{section.label}</span>
+                        </label>
+                      ))}
+                      <div className="border-t border-outline-variant/10 mt-2 pt-2 flex justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={showAllPanels}
+                          className="text-[11px] text-primary hover:underline cursor-pointer"
+                        >
+                          Show all
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowCustomize(false)}
+                          className="text-[11px] text-on-surface-variant hover:text-on-surface cursor-pointer"
+                        >
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {stats && stats.qualityScore != null ? (
               <>
                 {/* Quality Score */}
-                <div className="rounded-xl bg-surface-container-high p-5 border border-outline-variant/10">
-                  <QualityBadge score={stats.qualityScore} />
-                </div>
+                {panelVisibility.quality && (
+                  <div className="rounded-xl bg-surface-container-high p-5 border border-outline-variant/10">
+                    <QualityBadge score={stats.qualityScore} />
+                  </div>
+                )}
                 {/* Quick Stats */}
-                <div className="grid grid-cols-2 gap-3">
-                  <StatMini label="Rows" value={activeDs.rowCount?.toLocaleString()} icon="table_rows" />
-                  <StatMini label="Columns" value={activeDs.headers?.length} icon="view_column" />
-                  <StatMini label="File Size" value={formatBytes(activeDs.size)} icon="hard_drive" />
-                  <StatMini label="Parse Time" value={`${activeDs.parseTime ?? '—'}ms`} icon="timer" />
-                </div>
+                {panelVisibility.quickStats && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <StatMini label="Rows" value={activeDs.rowCount?.toLocaleString()} icon="table_rows" />
+                    <StatMini label="Columns" value={activeDs.headers?.length} icon="view_column" />
+                    <StatMini label="File Size" value={formatBytes(activeDs.size)} icon="hard_drive" />
+                    <StatMini label="Parse Time" value={`${activeDs.parseTime ?? '—'}ms`} icon="timer" />
+                  </div>
+                )}
                 {/* Primary Column Summary */}
-                {stats.primaryCol && stats.numericStats?.[stats.primaryCol] && (
+                {panelVisibility.primaryCol && stats.primaryCol && stats.numericStats?.[stats.primaryCol] && (
                   <div className="rounded-xl bg-surface-container-high p-4 border border-outline-variant/10 space-y-2">
                     <p className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Primary: {stats.primaryCol}</p>
                     <div className="grid grid-cols-3 gap-2 text-xs">
@@ -159,18 +288,33 @@ export default function LandingPage() {
                   </div>
                 )}
                 {/* Missing & Duplicate Summary */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-lg bg-surface-container-high p-3 border border-outline-variant/10 text-center">
-                    <p className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Nulls</p>
-                    <p className="text-lg font-bold font-headline">{stats.qualityFlags?.totalNullCount?.toLocaleString() ?? '0'}</p>
-                    <p className="text-[10px] text-on-surface-variant">{stats.qualityFlags?.nullPct ?? 0}%</p>
+                {panelVisibility.missingDupe && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-lg bg-surface-container-high p-3 border border-outline-variant/10 text-center">
+                      <p className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Nulls</p>
+                      <p className="text-lg font-bold font-headline">{stats.qualityFlags?.totalNullCount?.toLocaleString() ?? '0'}</p>
+                      <p className="text-[10px] text-on-surface-variant">{stats.qualityFlags?.nullPct ?? 0}%</p>
+                    </div>
+                    <div className="rounded-lg bg-surface-container-high p-3 border border-outline-variant/10 text-center">
+                      <p className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Dupes</p>
+                      <p className="text-lg font-bold font-headline">{stats.qualityFlags?.duplicateRowCount ?? 0}</p>
+                      <p className="text-[10px] text-on-surface-variant">{stats.qualityFlags?.duplicatePct ?? 0}%</p>
+                    </div>
                   </div>
-                  <div className="rounded-lg bg-surface-container-high p-3 border border-outline-variant/10 text-center">
-                    <p className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Dupes</p>
-                    <p className="text-lg font-bold font-headline">{stats.qualityFlags?.duplicateRowCount ?? 0}</p>
-                    <p className="text-[10px] text-on-surface-variant">{stats.qualityFlags?.duplicatePct ?? 0}%</p>
+                )}
+                {visibleSectionCount === 0 && (
+                  <div className="rounded-xl bg-surface-container-high p-6 border border-outline-variant/10 text-center text-xs text-on-surface-variant">
+                    All panel sections are hidden. Use{' '}
+                    <button
+                      type="button"
+                      onClick={() => setShowCustomize(true)}
+                      className="underline text-primary hover:text-primary/80 cursor-pointer"
+                    >
+                      Customize panel
+                    </button>{' '}
+                    to show some.
                   </div>
-                </div>
+                )}
               </>
             ) : (
               <div className="flex-1 rounded-xl bg-surface-container-high p-6 border border-outline-variant/10 flex flex-col items-center justify-center text-center gap-3 opacity-50">
