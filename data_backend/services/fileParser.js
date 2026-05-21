@@ -187,10 +187,17 @@ export async function readRowsPage(parsedFilePath, page = 1, limit = 50, options
     const skip = (page - 1) * limit;
     const rows = [];
     let lineIndex = 0;
-    let total = 0;
+    let destroyed = false;
 
     const rl = fs.createReadStream(parsedFilePath, { encoding: 'utf-8' });
     let buffer = '';
+
+    const cleanupAndResolve = () => {
+      if (destroyed) return;
+      destroyed = true;
+      rl.destroy();
+      resolve({ rows, page, limit });
+    };
 
     rl.on('data', (chunk) => {
       buffer += chunk;
@@ -199,7 +206,6 @@ export async function readRowsPage(parsedFilePath, page = 1, limit = 50, options
 
       for (const line of lines) {
         if (!line.trim()) continue;
-        total++;
 
         if (lineIndex >= skip && rows.length < limit) {
           try {
@@ -209,25 +215,30 @@ export async function readRowsPage(parsedFilePath, page = 1, limit = 50, options
           }
         }
         lineIndex++;
+        if (lineIndex >= skip + limit) {
+          cleanupAndResolve();
+          return;
+        }
       }
     });
 
     rl.on('end', () => {
+      if (destroyed) return;
       // Process remaining buffer
-      if (buffer.trim()) {
-        total++;
-        if (lineIndex >= skip && rows.length < limit) {
-          try {
-            rows.push(JSON.parse(buffer));
-          } catch {
-            // Skip
-          }
+      if (buffer.trim() && lineIndex >= skip && rows.length < limit) {
+        try {
+          rows.push(JSON.parse(buffer));
+        } catch {
+          // Skip
         }
       }
-      resolve({ rows, page, limit, total });
+      resolve({ rows, page, limit });
     });
 
-    rl.on('error', reject);
+    rl.on('error', (err) => {
+      if (destroyed) return;
+      reject(err);
+    });
   });
 }
 
