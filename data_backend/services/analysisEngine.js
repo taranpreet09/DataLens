@@ -187,14 +187,31 @@ export function autoK(data, options = {}) {
 
   const first = wcssValues[0];
   const last = wcssValues[wcssValues.length - 1];
-  const lineSlope = (last.wcss - first.wcss) / (last.k - first.k);
+  const kRange = last.k - first.k;
+  const wcssRange = first.wcss - last.wcss;
 
   let maxDist = 0;
   let optimalK = 2;
 
+  if (kRange === 0 || wcssRange === 0) {
+    return { optimalK: 2, wcssValues, elbowScore: 0 };
+  }
+
+  const kNorm = (pt) => (pt.k - first.k) / kRange;
+  const wcssNorm = (pt) => (pt.wcss - last.wcss) / wcssRange;
+
+  const firstNormK = kNorm(first);
+  const firstNormW = wcssNorm(first);
+  const lastNormK = kNorm(last);
+  const lastNormW = wcssNorm(last);
+  const lineSlope = (lastNormW - firstNormW) / (lastNormK - firstNormK);
+  const lineIntercept = firstNormW - lineSlope * firstNormK;
+
   for (let i = 1; i < wcssValues.length - 1; i++) {
-    const expected = first.wcss + lineSlope * (wcssValues[i].k - first.k);
-    const dist = Math.abs(expected - wcssValues[i].wcss);
+    const nk = kNorm(wcssValues[i]);
+    const nw = wcssNorm(wcssValues[i]);
+    const dist = Math.abs(lineSlope * nk - nw + lineIntercept)
+      / Math.sqrt(lineSlope ** 2 + 1);
     if (dist > maxDist) {
       maxDist = dist;
       optimalK = wcssValues[i].k;
@@ -291,31 +308,43 @@ export function kMeansAnalysis(headers, rows, options = {}) {
  * Compute Silhouette Score for a clustering result.
  * Measures how similar each point is to its own cluster vs nearest other cluster.
  * Range: -1 (bad) to +1 (good).
+ * Uses random sampling for datasets larger than 2000 points to avoid O(n²) blowup.
  */
 function computeSilhouetteScore(data, labels, k) {
   const n = data.length;
   if (k < 2 || n < k) return { overall: 0, perPoint: new Array(n).fill(0) };
 
+  const maxSampleSize = 2000;
+  let sampleIndices;
+  if (n > maxSampleSize) {
+    sampleIndices = Array.from({ length: n }, (_, i) => i);
+    for (let i = sampleIndices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [sampleIndices[i], sampleIndices[j]] = [sampleIndices[j], sampleIndices[i]];
+    }
+    sampleIndices = sampleIndices.slice(0, maxSampleSize);
+  } else {
+    sampleIndices = Array.from({ length: n }, (_, i) => i);
+  }
+
   const perPoint = new Array(n).fill(0);
 
-  for (let i = 0; i < n; i++) {
+  for (const i of sampleIndices) {
     const myCluster = labels[i];
 
-    // Compute average distance to own cluster (a(i))
     let aSum = 0, aCount = 0;
-    for (let j = 0; j < n; j++) {
+    for (const j of sampleIndices) {
       if (j === i || labels[j] !== myCluster) continue;
       aSum += euclideanDistance(data[i], data[j]);
       aCount++;
     }
     const a = aCount > 0 ? aSum / aCount : 0;
 
-    // Compute minimum average distance to any other cluster (b(i))
     let b = Infinity;
     for (let c = 0; c < k; c++) {
       if (c === myCluster) continue;
       let bSum = 0, bCount = 0;
-      for (let j = 0; j < n; j++) {
+      for (const j of sampleIndices) {
         if (labels[j] !== c) continue;
         bSum += euclideanDistance(data[i], data[j]);
         bCount++;
@@ -331,7 +360,8 @@ function computeSilhouetteScore(data, labels, k) {
     perPoint[i] = maxAB > 0 ? (b - a) / maxAB : 0;
   }
 
-  const overall = round(mean(perPoint));
+  const sampledScores = sampleIndices.map(i => perPoint[i]);
+  const overall = round(mean(sampledScores));
   return { overall, perPoint };
 }
 
@@ -1165,26 +1195,24 @@ export function holtWinters(series, options = {}) {
   for (let t = 0; t < n; t++) {
     const prevLevel = level;
     const prevTrend = trend;
-    const seasonIdx = t % seasonLength;
 
     if (multiplicative) {
-      level = alpha * (series[t] / (seasonal[seasonIdx] || 1)) + (1 - alpha) * (prevLevel + prevTrend);
+      level = alpha * (series[t] / (seasonal[t] || 1)) + (1 - alpha) * (prevLevel + prevTrend);
       trend = beta * (level - prevLevel) + (1 - beta) * prevTrend;
-      seasonal[t + seasonLength] = gamma * (series[t] / (level || 1)) + (1 - gamma) * seasonal[seasonIdx];
-      fitted[t] = (prevLevel + prevTrend) * seasonal[seasonIdx];
+      seasonal[t + seasonLength] = gamma * (series[t] / (level || 1)) + (1 - gamma) * seasonal[t];
+      fitted[t] = (prevLevel + prevTrend) * seasonal[t];
     } else {
-      level = alpha * (series[t] - seasonal[seasonIdx]) + (1 - alpha) * (prevLevel + prevTrend);
+      level = alpha * (series[t] - seasonal[t]) + (1 - alpha) * (prevLevel + prevTrend);
       trend = beta * (level - prevLevel) + (1 - beta) * prevTrend;
-      seasonal[t + seasonLength] = gamma * (series[t] - level) + (1 - gamma) * seasonal[seasonIdx];
-      fitted[t] = prevLevel + prevTrend + seasonal[seasonIdx];
+      seasonal[t + seasonLength] = gamma * (series[t] - level) + (1 - gamma) * seasonal[t];
+      fitted[t] = prevLevel + prevTrend + seasonal[t];
     }
   }
 
   // Generate forecast
   const forecast = [];
   for (let h = 1; h <= forecastPeriods; h++) {
-    const seasonIdx = (n + h - 1) % seasonLength;
-    const sComp = seasonal[n + h - 1] || seasonal[seasonIdx] || (multiplicative ? 1 : 0);
+    const sComp = seasonal[n + ((h - 1) % seasonLength)] || (multiplicative ? 1 : 0);
     if (multiplicative) {
       forecast.push(round((level + h * trend) * sComp));
     } else {

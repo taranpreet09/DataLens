@@ -6,7 +6,7 @@ import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import Dataset from '../models/Dataset.js';
 import authMiddleware from '../middleware/auth.js';
-import { UPLOADS_DIR } from '../config/storage.js';
+import { UPLOADS_DIR, PARSED_DIR } from '../config/storage.js';
 import { addProcessingJob } from '../services/jobQueue.js';
 import { readRowsPage, deleteParsedFile } from '../services/fileParser.js';
 import { cacheGet, cacheSet, cacheDel } from '../config/redis.js';
@@ -129,6 +129,15 @@ router.post('/', async (req, res) => {
     const { name, size, ext, rowCount, headers, stats, parseTime, rows } = parsed.data;
     console.log(`📥 Saving dataset: "${name}" (${rowCount} rows, ${headers?.length} cols)`);
 
+    // Write rows to JSONL file instead of storing in MongoDB
+    let parsedFilePath = null;
+    if (rows && Array.isArray(rows) && rows.length > 0) {
+      const fileId = uuidv4();
+      parsedFilePath = path.join(PARSED_DIR, `${fileId}.jsonl`);
+      const lines = rows.map(row => JSON.stringify(row));
+      fs.writeFileSync(parsedFilePath, lines.join('\n'), 'utf8');
+    }
+
     const dataset = await Dataset.create({
       userId: req.userId,
       name,
@@ -138,7 +147,8 @@ router.post('/', async (req, res) => {
       headers,
       stats,
       parseTime,
-      rows,
+      parsedFilePath,
+      rows: null,
       status: 'ready',
     });
 

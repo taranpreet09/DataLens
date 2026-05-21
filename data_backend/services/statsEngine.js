@@ -248,6 +248,17 @@ function spearmanCorrelation(arrA, arrB) {
 function computeCorrelationMatrix(rows, numCols) {
   if (numCols.length < 2) return { matrix: {}, spearmanMatrix: {}, pairs: [] };
 
+  const maxRows = 5000;
+  let sampledRows = rows;
+  if (rows.length > maxRows) {
+    const indices = Array.from({ length: rows.length }, (_, i) => i);
+    for (let i = indices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+    sampledRows = indices.slice(0, maxRows).map(i => rows[i]);
+  }
+
   const matrix = {};
   const spearmanMatrix = {};
   const pairs = [];
@@ -258,7 +269,7 @@ function computeCorrelationMatrix(rows, numCols) {
     for (const b of numCols) {
       if (a === b) { matrix[a][b] = 1; spearmanMatrix[a][b] = 1; continue; }
       const pairsA = [], pairsB = [];
-      rows.forEach(r => {
+      sampledRows.forEach(r => {
         const va = r[a], vb = r[b];
         if (va !== null && vb !== null && !isNaN(Number(va)) && !isNaN(Number(vb))) {
           pairsA.push(Number(va));

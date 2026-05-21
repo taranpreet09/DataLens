@@ -172,7 +172,8 @@ function reducer(state, action) {
   const nextState = baseReducer(state, action);
   if (['ADD_DATASET', 'UPDATE_DATASET', 'DELETE_DATASET', 'SET_ACTIVE'].includes(action.type) || 
       (action.type === 'SET_ALL' && action.payload.length > 0)) {
-     localforage.setItem('datalens_datasets', nextState.datasets).catch(() => {});
+     const lightweight = nextState.datasets.map(({ rows, ...rest }) => ({ ...rest, rows: [] }));
+     localforage.setItem('datalens_datasets', lightweight).catch(() => {});
      localforage.setItem('datalens_activeId', nextState.activeId).catch(() => {});
   }
   return nextState;
