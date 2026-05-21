@@ -73,7 +73,6 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 
     console.log(`📤 File uploaded: "${originalname}" (${(size / 1024 / 1024).toFixed(2)} MB) → processing...`);
 
-    // Queue the processing job
     let jobId = null;
     try {
       jobId = await addProcessingJob(dataset._id.toString(), req.userId, filePath);
@@ -81,23 +80,32 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     } catch (queueErr) {
       // If Redis/queue is unavailable, process synchronously (fallback)
       console.warn('⚠️  Job queue unavailable, processing synchronously:', queueErr.message);
-      const { parseFile } = await import('../services/fileParser.js');
-      const { computeAllStats } = await import('../services/statsEngine.js');
+      try {
+        const { parseFile } = await import('../services/fileParser.js');
+        const { computeAllStats } = await import('../services/statsEngine.js');
 
-      const { headers, rowCount, parsedFilePath, sampleRows } = await parseFile(filePath, dataset._id.toString());
-      const stats = computeAllStats(headers, sampleRows.length > 0 ? sampleRows : []);
+        const { headers, rowCount, parsedFilePath, sampleRows } = await parseFile(filePath, dataset._id.toString());
+        const stats = computeAllStats(headers, sampleRows.length > 0 ? sampleRows : []);
 
-      await Dataset.findByIdAndUpdate(dataset._id, {
-        headers,
-        rowCount,
-        stats,
-        parsedFilePath,
-        status: 'ready',
-        parseTime: Date.now() - dataset.createdAt.getTime(),
-      });
+        await Dataset.findByIdAndUpdate(dataset._id, {
+          headers,
+          rowCount,
+          stats,
+          parsedFilePath,
+          status: 'ready',
+          parseTime: Date.now() - dataset.createdAt.getTime(),
+        });
 
-      const updated = await Dataset.findById(dataset._id);
-      return res.status(201).json({ dataset: updated, processed: true });
+        const updated = await Dataset.findById(dataset._id);
+        return res.status(201).json({ dataset: updated, processed: true });
+      } catch (syncErr) {
+        console.error('❌ Synchronous fallback processing error:', syncErr.message);
+        await Dataset.findByIdAndUpdate(dataset._id, {
+          status: 'error',
+          error: syncErr.message || 'Synchronous processing failed',
+        }).catch(() => {});
+        throw syncErr;
+      }
     }
 
     res.status(202).json({
@@ -309,14 +317,28 @@ router.delete('/:id', async (req, res) => {
     const dataset = await Dataset.findOne({ _id: req.params.id, userId: req.userId });
     if (!dataset) return res.status(404).json({ message: 'Dataset not found.' });
 
-    // Clean up files
-    if (dataset.uploadPath && fs.existsSync(dataset.uploadPath)) {
-      fs.unlinkSync(dataset.uploadPath);
+    // Clean up files safely
+    try {
+      if (dataset.uploadPath && fs.existsSync(dataset.uploadPath)) {
+        fs.unlinkSync(dataset.uploadPath);
+      }
+    } catch (fErr) {
+      console.warn(`⚠️ Failed to delete upload file: ${dataset.uploadPath}`, fErr.message);
     }
-    if (dataset.parsedFilePath && fs.existsSync(dataset.parsedFilePath)) {
-      fs.unlinkSync(dataset.parsedFilePath);
+
+    try {
+      if (dataset.parsedFilePath && fs.existsSync(dataset.parsedFilePath)) {
+        fs.unlinkSync(dataset.parsedFilePath);
+      }
+    } catch (fErr) {
+      console.warn(`⚠️ Failed to delete parsed file: ${dataset.parsedFilePath}`, fErr.message);
     }
-    deleteParsedFile(dataset._id.toString());
+
+    try {
+      deleteParsedFile(dataset._id.toString());
+    } catch (fErr) {
+      console.warn(`⚠️ Failed to delete parsed file via helper: ${dataset._id}`, fErr.message);
+    }
 
     // Invalidate cache
     await cacheDel(`datasets:${req.userId}:*`);
