@@ -1,11 +1,8 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
-import { OAuth2Client } from 'google-auth-library';
 import User from '../models/User.js';
 import authMiddleware from '../middleware/auth.js';
-
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const router = Router();
 
@@ -88,10 +85,6 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
-    if (user.authProvider === 'google') {
-      return res.status(400).json({ message: 'This account was registered using Google. Please log in with Google.' });
-    }
-
     // Compare password
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
@@ -107,71 +100,6 @@ router.post('/login', async (req, res) => {
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ message: 'Server error. Please try again.' });
-  }
-});
-
-// ─── POST /api/auth/google ────────────────────────────────────────────────────
-router.post('/google', async (req, res) => {
-  try {
-    const { token } = req.body;
-    if (!token) {
-      return res.status(400).json({ message: 'Token is required' });
-    }
-
-    let email, name;
-
-    // Try verifying as an ID token (JWT) first — more secure, no network call
-    try {
-      const ticket = await client.verifyIdToken({
-        idToken: token,
-        audience: process.env.GOOGLE_CLIENT_ID,
-      });
-      const payload = ticket.getPayload();
-      email = payload.email;
-      name = payload.name;
-    } catch {
-      // Fallback: treat as access_token (legacy flow)
-      const googleRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!googleRes.ok) {
-        return res.status(401).json({ message: 'Invalid Google token' });
-      }
-
-      const payload = await googleRes.json();
-      email = payload.email;
-      name = payload.name;
-    }
-
-    if (!email) {
-      return res.status(400).json({ message: 'Email not found in Google profile' });
-    }
-
-    // Check if user exists
-    let user = await User.findOne({ email: email.toLowerCase() });
-
-    if (!user) {
-      // Create new user if doesn't exist
-      user = await User.create({
-        email: email.toLowerCase(),
-        fullName: name || 'Google User',
-        authProvider: 'google',
-        role: '',
-        organization: '',
-        platform: 'business_intelligence',
-      });
-    }
-
-    const jwtToken = generateToken(user._id);
-
-    res.json({
-      token: jwtToken,
-      user: user.toJSON(),
-    });
-  } catch (err) {
-    console.error('Google auth error:', err);
-    res.status(500).json({ message: 'Server error during Google authentication' });
   }
 });
 

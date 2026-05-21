@@ -58,21 +58,6 @@ export function AuthProvider({ children }) {
     return data.user;
   }, []);
 
-  const loginWithGoogle = useCallback(async (tokenResponse) => {
-    const res = await fetch(`${API_URL}/google`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: tokenResponse }),
-    });
-
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'Google Login failed');
-
-    localStorage.setItem('datalens_token', data.token);
-    setUser(data.user);
-    return data.user;
-  }, []);
-
   const logout = useCallback(() => {
     localStorage.removeItem('datalens_token');
     setUser(null);
@@ -82,7 +67,7 @@ export function AuthProvider({ children }) {
   const isAuthenticated = !!user;
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, loading, login, signup, loginWithGoogle, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated, loading, login, signup, logout }}>
       {children}
     </AuthContext.Provider>
   );
