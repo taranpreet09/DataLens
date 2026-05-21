@@ -27,7 +27,7 @@ function quantile(arr, q) {
 function stdDev(arr) {
   if (arr.length < 2) return 0;
   const m = mean(arr);
-  return Math.sqrt(arr.reduce((s, v) => s + (v - m) ** 2, 0) / arr.length);
+  return Math.sqrt(arr.reduce((s, v) => s + (v - m) ** 2, 0) / (arr.length - 1));
 }
 
 function variance(arr) { const sd = stdDev(arr); return sd * sd; }
@@ -134,8 +134,9 @@ function computeNumericStats(rows, headers, columnTypes) {
     const q3 = quantile(vals, 0.75);
     const iqr = q3 - q1;
 
-    // Skewness: Pearson's second skewness coefficient
-    const skewness = sd > 0 ? round((3 * (m - med)) / sd, 4) : 0;
+    const n = vals.length;
+    const sum3 = vals.reduce((acc, x) => ((x - m) / sd) ** 3 + acc, 0);
+    const skewness = n >= 3 ? (n / ((n - 1) * (n - 2))) * sum3 : 0;
 
     // Z-score outliers: |value - mean| / stdDev > 3
     const zscoreOutliers = sd > 0 ? vals.filter(x => Math.abs(x - m) / sd > 3) : [];
@@ -332,6 +333,17 @@ function getCorrelationStrength(r) {
 function computeCorrelationMatrix(rows, numCols) {
   if (numCols.length < 2) return { matrix: {}, insights: [] };
 
+  const maxRows = 5000;
+  let sampledRows = rows;
+  if (rows.length > maxRows) {
+    const indices = Array.from({ length: rows.length }, (_, i) => i);
+    for (let i = indices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+    sampledRows = indices.slice(0, maxRows).map(i => rows[i]);
+  }
+
   const matrix = {};
   const pairs = [];
 
@@ -340,7 +352,7 @@ function computeCorrelationMatrix(rows, numCols) {
     for (const b of numCols) {
       if (a === b) { matrix[a][b] = 1; continue; }
       const pairsA = [], pairsB = [];
-      rows.forEach(r => {
+      sampledRows.forEach(r => {
         const va = r[a], vb = r[b];
         if (va !== null && vb !== null && !isNaN(Number(va)) && !isNaN(Number(vb))) {
           pairsA.push(Number(va));
@@ -659,10 +671,10 @@ function computeAnomalies(rows, headers, columnTypes, numericStats, categoricalC
         const counts = Array(10).fill(0);
         firstDigits.forEach(d => counts[d]++);
         const actualPct = counts.map(c => c / firstDigits.length);
-        const expectedPct = [0, 0.301, 0.176, 0.125, 0.097, 0.079, 0.067, 0.058, 0.051, 0.046];
+        const benfordExpected = [0.301, 0.176, 0.125, 0.097, 0.079, 0.067, 0.058, 0.051, 0.046];
         let mad = 0;
-        for (let d = 1; d <= 9; d++) {
-          mad += Math.abs(actualPct[d] - expectedPct[d]);
+        for (let i = 0; i < 9; i++) {
+          mad += Math.abs(actualPct[i + 1] - benfordExpected[i]);
         }
         mad = mad / 9;
         
@@ -958,45 +970,56 @@ function computeQualityScore(qualityFlags, rowCount, colCount, rows, headers, co
   if (!rowCount || !colCount) return 100;
 
   const totalCells = rowCount * colCount;
-  const nullPct = totalCells > 0 ? (qualityFlags.totalNullCount / totalCells) * 100 : 0;
-  const dupePct = rowCount > 0 ? (qualityFlags.duplicateRowCount / rowCount) * 100 : 0;
 
-  // Mixed type penalty — per-column ratio
+  // Dimension 1: Completeness (0-1) — proportion of non-null cells
+  const nullRatio = totalCells > 0 ? qualityFlags.totalNullCount / totalCells : 0;
+  const completeness = 1 - nullRatio;
+
+  // Dimension 2: Uniqueness (0-1) — proportion of non-duplicate rows
+  const dupeRatio = rowCount > 0 ? qualityFlags.duplicateRowCount / rowCount : 0;
+  const uniqueness = 1 - dupeRatio;
+
+  // Dimension 3: Consistency (0-1) — proportion of columns without mixed types
   const mixedTypeCount = qualityFlags.mixedTypeColumns.length;
-  const mixedTypeRatio = colCount > 0 ? (mixedTypeCount / colCount) * 100 : 0;
+  const consistency = colCount > 0 ? 1 - (mixedTypeCount / colCount) : 1;
 
-  // Count dirty string values (currency symbols, N/A strings still present as text)
+  // Dimension 4: Validity (0-1) — proportion of cells free of dirty strings
   let dirtyStringCount = 0;
   if (rows && headers && columnTypes) {
-    const sampleRows = rows.slice(0, Math.min(rows.length, 500));
-    for (const h of headers) {
-      for (const row of sampleRows) {
+    const sampleSize = Math.min(rows.length, 2000);
+    const step = Math.max(1, Math.floor(rows.length / sampleSize));
+    let sampledCells = 0;
+    for (let ri = 0; ri < rows.length && sampledCells < sampleSize * colCount; ri += step) {
+      const row = rows[ri];
+      for (const h of headers) {
         const val = row[h];
-        if (val === null || val === undefined || typeof val === 'number') continue;
+        if (val === null || val === undefined || typeof val === 'number') { sampledCells++; continue; }
         const s = String(val).trim();
         const sl = s.toLowerCase();
         if (NULL_STRINGS_SCORE.has(sl)) dirtyStringCount++;
         else if (DIRTY_NUMERIC_STRINGS.test(s) && /\d/.test(s)) dirtyStringCount++;
         else if (s !== '' && columnTypes[h] === 'numeric' && isNaN(Number(s))) dirtyStringCount++;
+        sampledCells++;
       }
     }
-    // Scale sample dirty count to entire dataset estimate
-    if (rows.length > 500) {
-      dirtyStringCount = (dirtyStringCount / (500 * colCount)) * totalCells;
-    }
+    const sampledTotal = sampledCells || 1;
+    dirtyStringCount = (dirtyStringCount / sampledTotal) * totalCells;
   }
-  const dirtyStringPct = totalCells > 0 ? (dirtyStringCount / totalCells) * 100 : 0;
+  const dirtyRatio = totalCells > 0 ? dirtyStringCount / totalCells : 0;
+  const validity = 1 - Math.min(dirtyRatio, 1);
 
-  // Aggressive penalties — messy files should score 20-50, clean files 90+
-  const score = Math.round(Math.max(0, Math.min(100,
-    100
-    - (nullPct * 1.2)          // ~8% nulls knocks off ~10 pts
-    - (dupePct * 1.0)          // 65% dupes = -65 pts alone
-    - (mixedTypeRatio * 4.0)   // Even 1 mixed-type column heavily penalized
-    - (dirtyStringPct * 2.0)   // Currency strings / N/A text hit hard
-  )));
+  // Geometric mean of all four dimensions, scaled to 0-100
+  // Geometric mean naturally penalizes any single bad dimension without
+  // allowing one good dimension to mask problems in another.
+  const geoMean = Math.pow(
+    Math.max(completeness, 0.001) *
+    Math.max(uniqueness, 0.001) *
+    Math.max(consistency, 0.001) *
+    Math.max(validity, 0.001),
+    0.25
+  );
 
-  return score;
+  return Math.round(Math.max(0, Math.min(100, geoMean * 100)));
 }
 
 // ─── Main Export ────────────────────────────────────────────────────────────────

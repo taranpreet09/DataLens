@@ -2,8 +2,8 @@
  * LLM Rate Limiter — per-user Bedrock invocation budget.
  *
  * Allows at most 30 LLM invocations per user per rolling hour.
- * Implemented with Redis INCR + EXPIRE so the counter is shared across
- * all Node processes (e.g. when running behind a load balancer).
+ * Implemented with a Redis Lua script for atomic check-and-increment,
+ * eliminating race conditions between concurrent requests.
  *
  * Fail-open: if Redis is unreachable the call is allowed through with a
  * warning log, consistent with how the existing job queue handles Redis
@@ -16,10 +16,31 @@ import { logEvent, withCode } from './intelligenceLogger.js';
 const MAX_INVOCATIONS_PER_HOUR = 30;
 const WINDOW_SECONDS = 3600;
 
+const RATE_LIMIT_SCRIPT = `
+local key = KEYS[1]
+local max = tonumber(ARGV[1])
+local window = tonumber(ARGV[2])
+local current = tonumber(redis.call('GET', key) or '0')
+if current >= max then
+  return -1
+end
+local newCount = redis.call('INCR', key)
+if newCount == 1 then
+  redis.call('EXPIRE', key, window)
+end
+if newCount > max then
+  redis.call('DECR', key)
+  return -1
+end
+return newCount
+`;
+
 /**
  * Check whether the user has remaining LLM budget for this hour.
  *
- * Increments the counter and sets a 1-hour TTL on first use.
+ * Uses an atomic Lua script to check the current count and increment
+ * in a single Redis operation, preventing race conditions.
+ *
  * Throws `LLM_RATE_LIMITED` (with `retryAfterSeconds`) when the budget
  * is exhausted.
  *
@@ -32,19 +53,15 @@ export async function checkLlmBudget(userId) {
   try {
     const conn = getRedisConnection();
 
-    // INCR is atomic; if the key doesn't exist Redis creates it at 0 first.
-    const count = await conn.incr(key);
+    const result = await conn.eval(
+      RATE_LIMIT_SCRIPT,
+      1,
+      key,
+      MAX_INVOCATIONS_PER_HOUR,
+      WINDOW_SECONDS
+    );
 
-    // Set TTL only on the first increment so the window is anchored to the
-    // first call, not reset on every call.
-    if (count === 1) {
-      await conn.expire(key, WINDOW_SECONDS);
-    }
-
-    if (count > MAX_INVOCATIONS_PER_HOUR) {
-      // Decrement so the over-limit call doesn't consume a slot.
-      await conn.decr(key).catch(() => {});
-
+    if (result === -1) {
       const ttl = await conn.ttl(key).catch(() => WINDOW_SECONDS);
       const retryAfterSeconds = ttl > 0 ? ttl : WINDOW_SECONDS;
 

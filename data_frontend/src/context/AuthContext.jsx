@@ -59,12 +59,6 @@ export function AuthProvider({ children }) {
   }, []);
 
   const loginWithGoogle = useCallback(async (tokenResponse) => {
-    // Note: If using useGoogleLogin, the token comes as 'access_token'. 
-    // If using <GoogleLogin />, it comes as 'credential'.
-    // We should send the ID token to the backend for verification.
-    // If useGoogleLogin was used, it returns an access token which requires hitting Google's UserInfo endpoint first,
-    // OR it can be configured to return an ID token by setting `flow: 'auth-code'` and handling it, but standard <GoogleLogin /> returns a JWT `credential`.
-    // We'll assume we're passing the JWT `credential` (ID Token).
     const res = await fetch(`${API_URL}/google`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

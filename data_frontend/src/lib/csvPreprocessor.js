@@ -59,12 +59,18 @@ function canMergeAsNumber(a, b) {
   // a must look like a short integer prefix (1-4 digits, no unit)
   if (!/^\d{1,4}$/.test(sa)) return false;
 
-  // b must be 3 digits (thousands), 3 digits + suffix, or 2 digits (might be cents)
+  // b must be exactly 3 digits (thousands group), optionally with suffix or decimal
   const isThousands = /^\d{3}$/.test(sb);
   const isThousandsWithUnit = /^\d{3}[a-zA-Z%]+$/.test(sb);
   const isThousandsWithDecimal = /^\d{3}\.\d+$/.test(sb);
 
   if (!isThousands && !isThousandsWithUnit && !isThousandsWithDecimal) return false;
+
+  // Reject if b is exactly 3 digits and a is also a standalone small number (1-3 digits).
+  // This prevents merging legitimate adjacent columns like (zip=902, population=100).
+  // Only allow merge when a has 4+ digits OR b has a decimal/unit suffix that
+  // makes it clearly a thousands separator artifact.
+  if (isThousands && sa.length <= 3) return false;
 
   // Final sanity: merged value must be numeric (ignoring unit)
   const merged = sa + sb.replace(/[a-zA-Z%]+$/, '');

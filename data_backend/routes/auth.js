@@ -114,17 +114,31 @@ router.post('/google', async (req, res) => {
       return res.status(400).json({ message: 'Token is required' });
     }
 
-    // Since we use useGoogleLogin, we receive an access_token. We fetch the user profile directly.
-    const googleRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    let email, name;
 
-    if (!googleRes.ok) {
-      return res.status(401).json({ message: 'Invalid Google token' });
+    // Try verifying as an ID token (JWT) first — more secure, no network call
+    try {
+      const ticket = await client.verifyIdToken({
+        idToken: token,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+      const payload = ticket.getPayload();
+      email = payload.email;
+      name = payload.name;
+    } catch {
+      // Fallback: treat as access_token (legacy flow)
+      const googleRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!googleRes.ok) {
+        return res.status(401).json({ message: 'Invalid Google token' });
+      }
+
+      const payload = await googleRes.json();
+      email = payload.email;
+      name = payload.name;
     }
-
-    const payload = await googleRes.json();
-    const { email, name } = payload;
 
     if (!email) {
       return res.status(400).json({ message: 'Email not found in Google profile' });
@@ -139,7 +153,6 @@ router.post('/google', async (req, res) => {
         email: email.toLowerCase(),
         fullName: name || 'Google User',
         authProvider: 'google',
-        // Optional fields set to default
         role: '',
         organization: '',
         platform: 'business_intelligence',

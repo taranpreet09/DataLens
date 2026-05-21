@@ -18,6 +18,13 @@ const app = express();
 const httpServer = createServer(app);
 const PORT = process.env.PORT || 5000;
 
+// ─── Startup Guards ───────────────────────────────────────────────────────────
+if (!process.env.JWT_SECRET) {
+  console.error('❌ FATAL: JWT_SECRET environment variable is not set.');
+  console.error('   Set JWT_SECRET in your .env file to a secure random string.');
+  process.exit(1);
+}
+
 // ─── CORS ─────────────────────────────────────────────────────────────────────
 const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173,http://127.0.0.1:5173')
   .split(',')
